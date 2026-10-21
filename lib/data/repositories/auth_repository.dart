@@ -43,18 +43,45 @@ class AuthRepository {
     return _handleResponse(response);
   }
 
-  Map<String, dynamic> _handleResponse(http.Response response) {
-    final dynamic decoded;
+  Future<Map<String, dynamic>?> validateSession(String token) async {
+    final response = await http
+        .get(
+          Uri.parse(AppConstants.sessionEndpoint),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 15));
 
+    final decoded = _decodeResponse(response);
+
+    if (response.statusCode == 200 &&
+        decoded['success'] == true &&
+        decoded['user'] is Map<String, dynamic>) {
+      return decoded['user'] as Map<String, dynamic>;
+    }
+
+    if (response.statusCode == 401) {
+      await logout();
+    }
+
+    return null;
+  }
+
+  Map<String, dynamic> _decodeResponse(http.Response response) {
     try {
-      decoded = jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
     } on FormatException {
       throw Exception('Respons server tidak valid.');
     }
 
-    if (decoded is! Map<String, dynamic>) {
-      throw Exception('Format respons server tidak dikenali.');
-    }
+    throw Exception('Format respons server tidak dikenali.');
+  }
+
+  Map<String, dynamic> _handleResponse(http.Response response) {
+    final decoded = _decodeResponse(response);
 
     if (response.statusCode >= 200 &&
         response.statusCode < 300 &&
