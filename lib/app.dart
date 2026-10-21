@@ -101,27 +101,32 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (token != null && token.isNotEmpty) {
-      final user = await _repository.validateSession(token);
+      try {
+        final user = await _repository.validateSession(token);
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      if (user != null) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(
-            builder: (_) => HomeScreen(
-              user: user,
-              repository: _repository,
-              onLogout: () async {
-                _goToLogin();
-              },
+        if (user != null) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => HomeScreen(
+                user: user,
+                repository: _repository,
+                onLogout: () async {
+                  await _repository.logout();
+                },
+              ),
             ),
-          ),
-        );
-        return;
+          );
+          return;
+        }
+      } catch (error) {
+        debugPrint('Gagal memvalidasi sesi: $error');
       }
     }
 
     if (!mounted) return;
+
     _goToLogin();
   }
 

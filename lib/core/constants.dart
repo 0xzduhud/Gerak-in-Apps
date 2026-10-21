@@ -9,4 +9,7 @@ class AppConstants {
       '$supabaseUrl/functions/v1/auth-register';
 
   static const String loginEndpoint = '$supabaseUrl/functions/v1/auth-login';
+
+  static const String sessionEndpoint =
+      '$supabaseUrl/functions/v1/auth-session';
 }

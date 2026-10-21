@@ -7,7 +7,7 @@ import 'app.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  String? errorMessage;
+  String errorMessage = 'Penyebab tidak diketahui.';
 
   try {
     await dotenv.load(fileName: '.env');
@@ -33,10 +33,9 @@ Future<void> main() async {
       );
     }
 
-    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+    await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
 
     runApp(const GerakInApp());
-    return;
   } catch (error, stackTrace) {
     errorMessage = error.toString();
 
@@ -44,42 +43,42 @@ Future<void> main() async {
     debugPrint('Penyebab: $error');
     debugPrintStack(stackTrace: stackTrace);
     debugPrint('====================================');
-  }
 
-  runApp(
-    MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        appBar: AppBar(title: const Text('Gerak-in - Error')),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                const SizedBox(height: 16),
-                const Text(
-                  'Aplikasi gagal dijalankan',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Detail error:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                SelectableText(errorMessage ?? 'Penyebab tidak diketahui.'),
-                const SizedBox(height: 20),
-                const Text(
-                  'Periksa detail di atas dan terminal VS Code '
-                  'untuk mengetahui penyebabnya.',
-                ),
-              ],
+    runApp(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          appBar: AppBar(title: const Text('Gerak-in - Error')),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Aplikasi gagal dijalankan',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Detail error:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  SelectableText(errorMessage),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Periksa detail di atas dan terminal VS Code '
+                    'untuk mengetahui penyebabnya.',
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

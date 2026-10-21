@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../data/repositories/auth_repository.dart';
+import '../auth/login_screen.dart';
+import '../profile/profile_screen.dart';
+import '../maps/maps_screen.dart';
+import '../workout/screens/workout_list_screen.dart';
+import '../community/community_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -25,17 +30,65 @@ class _HomeScreenState extends State<HomeScreen> {
     final fullName = widget.user['full_name']?.toString().trim();
     final username = widget.user['username']?.toString().trim();
 
-    if (fullName != null && fullName.isNotEmpty) return fullName;
-    if (username != null && username.isNotEmpty) return username;
+    if (fullName != null && fullName.isNotEmpty) {
+      return fullName;
+    }
+
+    if (username != null && username.isNotEmpty) {
+      return username;
+    }
+
     return 'Pengguna';
+  }
+
+  Future<void> _handleLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Keluar dari akun?'),
+        content: const Text(
+          'Kamu perlu login kembali untuk menggunakan akun ini.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout != true || !mounted) return;
+
+    try {
+      await widget.onLogout();
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal logout: $error')));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      _buildDashboard(),
-      _buildActivityPage(),
-      _buildProfilePage(),
+    final pages = <Widget>[
+      _buildHomePage(),
+      const MapsScreen(),
+      const WorkoutListScreen(),
+      const CommunityScreen(),
+      ProfileScreen(user: widget.user, onLogout: _handleLogout),
     ];
 
     return Scaffold(
@@ -44,37 +97,6 @@ class _HomeScreenState extends State<HomeScreen> {
           'Gerak-in',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Keluar',
-            onPressed: () async {
-              final shouldLogout = await showDialog<bool>(
-                context: context,
-                builder: (dialogContext) => AlertDialog(
-                  title: const Text('Keluar dari akun?'),
-                  content: const Text(
-                    'Kamu perlu login kembali untuk menggunakan akun ini.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogContext, false),
-                      child: const Text('Batal'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(dialogContext, true),
-                      child: const Text('Keluar'),
-                    ),
-                  ],
-                ),
-              );
-
-              if (shouldLogout == true) {
-                await widget.onLogout();
-              }
-            },
-            icon: const Icon(Icons.logout_rounded),
-          ),
-        ],
       ),
       body: SafeArea(
         child: IndexedStack(index: _selectedIndex, children: pages),
@@ -82,48 +104,54 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
-          setState(() => _selectedIndex = index);
+          setState(() {
+            _selectedIndex = index;
+          });
         },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home_rounded),
-            label: 'Beranda',
+            label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.directions_run_outlined),
-            selectedIcon: Icon(Icons.directions_run_rounded),
-            label: 'Aktivitas',
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map_rounded),
+            label: 'Maps',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.fitness_center_outlined),
+            selectedIcon: Icon(Icons.fitness_center_rounded),
+            label: 'Workout',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline_rounded),
+            selectedIcon: Icon(Icons.people_rounded),
+            label: 'Community',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),
             selectedIcon: Icon(Icons.person_rounded),
-            label: 'Profil',
+            label: 'Profile',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDashboard() {
+  Widget _buildHomePage() {
+    const primary = Color(0xFFE86524);
     const green = Color(0xFF16856B);
 
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         Text(
-          'Halo, $_displayName! 👋',
-          style: const TextStyle(
-            fontSize: 25,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF19332D),
-          ),
+          'Halo, $_displayName!',
+          style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Mulai bergerak, jaga kesehatan.',
-          style: TextStyle(fontSize: 15),
-        ),
+        const Text('Mulai bergerak, jaga kesehatan.'),
         const SizedBox(height: 24),
         Container(
           padding: const EdgeInsets.all(20),
@@ -148,208 +176,99 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 'Catat aktivitasmu dan capai target '
                 'kebugaranmu bersama Gerak-in.',
-                style: TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: Colors.white),
               ),
             ],
           ),
         ),
         const SizedBox(height: 24),
         const Text(
-          'Ringkasan aktivitas',
+          'Menu utama',
           style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        Row(
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.25,
           children: [
-            Expanded(
-              child: _summaryCard(
-                icon: Icons.directions_walk_rounded,
-                title: 'Langkah',
-                value: '0',
-                subtitle: 'Belum ada data',
-              ),
+            _menuCard(
+              icon: Icons.calendar_month_rounded,
+              title: 'Schedule',
+              onTap: () => _showComingSoon('Schedule'),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _summaryCard(
-                icon: Icons.timer_outlined,
-                title: 'Durasi',
-                value: '0 mnt',
-                subtitle: 'Belum ada data',
-              ),
+            _menuCard(
+              icon: Icons.games_rounded,
+              title: 'Games',
+              onTap: () => _showComingSoon('Games'),
+            ),
+            _menuCard(
+              icon: Icons.trending_up_rounded,
+              title: 'Progress',
+              onTap: () => _showComingSoon('Progress'),
+            ),
+            _menuCard(
+              icon: Icons.emoji_events_rounded,
+              title: 'Achievement',
+              onTap: () => _showComingSoon('Achievement'),
             ),
           ],
         ),
         const SizedBox(height: 24),
         const Text(
-          'Mulai dari sini',
+          'Aktivitas harian',
           style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         Card(
           child: ListTile(
-            leading: const CircleAvatar(
-              child: Icon(Icons.directions_run_rounded),
+            leading: const Icon(Icons.directions_walk_rounded, color: primary),
+            title: const Text('Daily Activity'),
+            subtitle: const Text(
+              'Pemantauan langkah akan dihubungkan '
+              'dengan sensor pada sprint berikutnya.',
             ),
-            title: const Text('Aktivitas olahraga'),
-            subtitle: const Text('Lihat dan catat aktivitasmu'),
             trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => setState(() => _selectedIndex = 1),
+            onTap: () {
+              setState(() {
+                _selectedIndex = 2;
+              });
+            },
           ),
-        ),
-        Card(
-          child: ListTile(
-            leading: const CircleAvatar(
-              child: Icon(Icons.person_outline_rounded),
-            ),
-            title: const Text('Profil saya'),
-            subtitle: const Text('Lihat informasi akun'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => setState(() => _selectedIndex = 2),
-          ),
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'Catatan: ringkasan di atas masih berupa nilai awal. '
-          'Data langkah dan durasi akan dihubungkan ke fitur '
-          'pemantauan aktivitas pada tahap berikutnya.',
-          style: TextStyle(fontSize: 12, color: Colors.black54),
         ),
       ],
     );
   }
 
-  Widget _summaryCard({
+  Widget _menuCard({
     required IconData icon,
     required String title,
-    required String value,
-    required String subtitle,
+    required VoidCallback onTap,
   }) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 28, color: const Color(0xFF16856B)),
-            const SizedBox(height: 12),
-            Text(title, style: const TextStyle(fontSize: 14)),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(fontSize: 11, color: Colors.black54),
-            ),
+            Icon(icon, size: 34, color: const Color(0xFFE86524)),
+            const SizedBox(height: 10),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActivityPage() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        const Text(
-          'Aktivitas olahraga',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Bagian ini akan menjadi tempat untuk '
-          'mencatat dan memantau aktivitas fisik.',
-        ),
-        const SizedBox(height: 20),
-        Card(
-          child: ListTile(
-            leading: const Icon(
-              Icons.directions_walk_rounded,
-              color: Color(0xFF16856B),
-            ),
-            title: const Text('Pemantauan langkah'),
-            subtitle: const Text('Akan dihubungkan ke sensor perangkat'),
-          ),
-        ),
-        Card(
-          child: ListTile(
-            leading: const Icon(
-              Icons.fitness_center_rounded,
-              color: Color(0xFF16856B),
-            ),
-            title: const Text('Catatan olahraga'),
-            subtitle: const Text('Akan dikembangkan pada tahap berikutnya'),
-          ),
-        ),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.flag_outlined, color: Color(0xFF16856B)),
-            title: const Text('Target aktivitas'),
-            subtitle: const Text('Akan dilengkapi pengaturan target'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProfilePage() {
-    final email = widget.user['email']?.toString() ?? '-';
-    final username = widget.user['username']?.toString() ?? '-';
-
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        const Text(
-          'Profil saya',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 24),
-        const CircleAvatar(
-          radius: 42,
-          backgroundColor: Color(0xFFD9EEE7),
-          child: Icon(Icons.person_rounded, size: 48, color: Color(0xFF16856B)),
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: Text(
-            _displayName,
-            style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
-          ),
-        ),
-        const SizedBox(height: 24),
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: const Text('Nama lengkap'),
-                subtitle: Text(_displayName),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.alternate_email),
-                title: const Text('Username'),
-                subtitle: Text(username),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.email_outlined),
-                title: const Text('Email'),
-                subtitle: Text(email),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Pengaturan profil dan fitur saran serta kesan '
-          'mata kuliah akan ditambahkan berikutnya.',
-          style: TextStyle(fontSize: 13),
-        ),
-      ],
+  void _showComingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature akan dikembangkan pada sprint berikutnya.'),
+      ),
     );
   }
 }
