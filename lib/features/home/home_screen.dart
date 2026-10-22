@@ -6,6 +6,7 @@ import '../profile/profile_screen.dart';
 import '../maps/maps_screen.dart';
 import '../workout/screens/workout_list_screen.dart';
 import '../community/community_screen.dart';
+import '../games/games_menu_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -92,12 +93,14 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Gerak-in',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      ),
+      appBar: _selectedIndex == 3
+          ? null
+          : AppBar(
+              title: const Text(
+                'Gerak-in',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
       body: SafeArea(
         child: IndexedStack(index: _selectedIndex, children: pages),
       ),
@@ -201,14 +204,22 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () => _showComingSoon('Schedule'),
             ),
             _menuCard(
-              icon: Icons.games_rounded,
-              title: 'Games',
-              onTap: () => _showComingSoon('Games'),
-            ),
-            _menuCard(
               icon: Icons.trending_up_rounded,
               title: 'Progress',
               onTap: () => _showComingSoon('Progress'),
+            ),
+            _menuCard(
+              icon: Icons.games_rounded,
+              title: 'Games',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  // Ubah bagian bawah ini dari QuizScreen menjadi GamesMenuScreen
+                  MaterialPageRoute(
+                    builder: (context) => const GamesMenuScreen(),
+                  ),
+                );
+              },
             ),
             _menuCard(
               icon: Icons.emoji_events_rounded,

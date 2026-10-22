@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'package:provider/provider.dart';
+
 import 'core/constants.dart';
 import 'data/repositories/auth_repository.dart';
 import 'features/auth/login_screen.dart';
+import 'features/community/community_provider.dart';
+import 'features/games/game_provider.dart';
 import 'features/home/home_screen.dart';
 
 class GerakInApp extends StatelessWidget {
@@ -17,7 +21,12 @@ class GerakInApp extends StatelessWidget {
     const surface = Color(0xFF241F1D);
     const foreground = Color(0xFFF5E9E4);
 
-    return MaterialApp(
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => GameProvider()),
+        ChangeNotifierProvider(create: (_) => CommunityProvider()),
+      ],
+      child: MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -65,6 +74,7 @@ class GerakInApp extends StatelessWidget {
         ),
       ),
       home: const SplashScreen(),
+    ),
     );
   }
 }
