@@ -1,14 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
 
-class ProfileScreen extends StatelessWidget {
+import '../../core/services/secure_storage_service.dart';
+
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, required this.user, required this.onLogout});
 
   final Map<String, dynamic> user;
   final Future<void> Function() onLogout;
 
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final LocalAuthentication _localAuth = LocalAuthentication();
+
+  bool _biometricEnabled = false;
+  bool _loadingBiometricSetting = true;
+  bool _processingBiometric = false;
+
   String get _displayName {
-    final fullName = user['full_name']?.toString().trim();
-    final username = user['username']?.toString().trim();
+    final fullName = widget.user['full_name']?.toString().trim();
+    final username = widget.user['username']?.toString().trim();
 
     if (fullName != null && fullName.isNotEmpty) {
       return fullName;
@@ -22,9 +36,108 @@ class ProfileScreen extends StatelessWidget {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadBiometricSetting();
+  }
+
+  Future<void> _loadBiometricSetting() async {
+    try {
+      final enabled = await SecureStorageService.isBiometricEnabled();
+
+      if (!mounted) return;
+
+      setState(() {
+        _biometricEnabled = enabled;
+        _loadingBiometricSetting = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _biometricEnabled = false;
+        _loadingBiometricSetting = false;
+      });
+    }
+  }
+
+  Future<void> _toggleBiometric(bool enabled) async {
+    if (_processingBiometric || _loadingBiometricSetting) return;
+
+    if (!enabled) {
+      try {
+        await SecureStorageService.saveBiometricEnabled(false);
+
+        if (!mounted) return;
+
+        setState(() => _biometricEnabled = false);
+        _showMessage('Login biometrik berhasil dinonaktifkan.');
+      } catch (error) {
+        _showMessage('Gagal mengubah pengaturan: $error');
+      }
+
+      return;
+    }
+
+    setState(() => _processingBiometric = true);
+
+    try {
+      final supported = await _localAuth.isDeviceSupported();
+      final canCheck = await _localAuth.canCheckBiometrics;
+
+      if (!supported || !canCheck) {
+        _showMessage('Perangkat tidak mendukung autentikasi biometrik.');
+        return;
+      }
+
+      final available = await _localAuth.getAvailableBiometrics();
+
+      if (available.isEmpty) {
+        _showMessage(
+          'Daftarkan sidik jari atau wajah di pengaturan perangkat '
+          'terlebih dahulu.',
+        );
+        return;
+      }
+
+      final authenticated = await _localAuth.authenticate(
+        localizedReason:
+            'Verifikasi identitas untuk mengaktifkan login biometrik Gerak-in',
+        biometricOnly: true,
+        persistAcrossBackgrounding: true,
+      );
+
+      if (!authenticated) {
+        _showMessage('Verifikasi dibatalkan atau tidak berhasil.');
+        return;
+      }
+
+      await SecureStorageService.saveBiometricEnabled(true);
+
+      if (!mounted) return;
+
+      setState(() => _biometricEnabled = true);
+      _showMessage('Login biometrik berhasil diaktifkan.');
+    } catch (error) {
+      _showMessage('Biometrik tidak dapat digunakan: $error');
+    } finally {
+      if (mounted) {
+        setState(() => _processingBiometric = false);
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final email = user['email']?.toString() ?? '-';
-    final username = user['username']?.toString() ?? '-';
+    final email = widget.user['email']?.toString() ?? '-';
+    final username = widget.user['username']?.toString() ?? '-';
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -79,6 +192,33 @@ class ProfileScreen extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         const Text(
+          'Keamanan',
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Card(
+          child: SwitchListTile(
+            secondary: const Icon(
+              Icons.fingerprint_rounded,
+              color: Color(0xFFE86524),
+              size: 30,
+            ),
+            title: const Text('Login biometrik'),
+            subtitle: Text(
+              _loadingBiometricSetting
+                  ? 'Memuat pengaturan...'
+                  : _processingBiometric
+                  ? 'Memverifikasi biometrik...'
+                  : 'Gunakan sidik jari atau wajah saat membuka aplikasi',
+            ),
+            value: _biometricEnabled,
+            onChanged: _loadingBiometricSetting || _processingBiometric
+                ? null
+                : _toggleBiometric,
+          ),
+        ),
+        const SizedBox(height: 24),
+        const Text(
           'Saran dan kesan mata kuliah '
           'Pemrograman Aplikasi Mobile',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
@@ -93,7 +233,7 @@ class ProfileScreen extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: onLogout,
+            onPressed: widget.onLogout,
             icon: const Icon(Icons.logout_rounded),
             label: const Text('Logout'),
             style: FilledButton.styleFrom(

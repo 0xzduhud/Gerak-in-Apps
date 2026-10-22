@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/services/biometric_service.dart';
+import '../../core/services/secure_storage_service.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../home/home_screen.dart';
 import 'register_screen.dart';
@@ -16,9 +18,43 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _repository = AuthRepository();
+  final _biometricService = BiometricService();
 
   bool _loading = false;
   bool _obscurePassword = true;
+  bool _biometricEnabled = false;
+  bool _biometricAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricStatus();
+  }
+
+  Future<void> _checkBiometricStatus() async {
+    try {
+      final enabled = await SecureStorageService.isBiometricEnabled();
+      final available = await _biometricService.isAvailable();
+      final token = await _repository.getSavedToken();
+
+      if (!mounted) return;
+
+      setState(() {
+        _biometricEnabled =
+            enabled && available && token != null && token.isNotEmpty;
+        _biometricAvailable = available;
+      });
+    } catch (error) {
+      debugPrint('Gagal memeriksa status biometrik: $error');
+
+      if (!mounted) return;
+
+      setState(() {
+        _biometricEnabled = false;
+        _biometricAvailable = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -27,7 +63,27 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _openHome(Map<String, dynamic> user) async {
+    if (!mounted) return;
+
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            HomeScreen(user: user, repository: _repository, onLogout: _logout),
+      ),
+    );
+  }
+
   Future<void> _login() async {
+    if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _loading = true);
@@ -41,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final token = result['token'];
       final userData = result['user'];
 
-      if (token is! String || userData is! Map) {
+      if (token is! String || token.isEmpty || userData is! Map) {
         throw Exception('Respons login tidak lengkap.');
       }
 
@@ -49,24 +105,82 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      final user = Map<String, dynamic>.from(userData);
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (_) => HomeScreen(
-            user: user,
-            repository: _repository,
-            onLogout: _logout,
-          ),
-        ),
-      );
+      await _openHome(Map<String, dynamic>.from(userData));
     } catch (error) {
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loginWithBiometrics() async {
+    if (_loading) return;
+
+    setState(() => _loading = true);
+
+    try {
+      final enabled = await SecureStorageService.isBiometricEnabled();
+
+      if (!enabled) {
+        _showMessage(
+          'Login biometrik belum aktif. Silakan login '
+          'dengan email dan password.',
+        );
+        return;
+      }
+
+      final token = await _repository.getSavedToken();
+
+      if (token == null || token.isEmpty) {
+        await SecureStorageService.saveBiometricEnabled(false);
+
+        if (!mounted) return;
+
+        setState(() => _biometricEnabled = false);
+        _showMessage(
+          'Sesi tidak ditemukan. Silakan login '
+          'dengan email dan password.',
+        );
+        return;
+      }
+
+      final available = await _biometricService.isAvailable();
+
+      if (!available) {
+        _showMessage(
+          'Biometrik tidak tersedia. Periksa pengaturan '
+          'keamanan perangkat.',
+        );
+        return;
+      }
+
+      final authenticated = await _biometricService.authenticate();
+
+      if (!authenticated) {
+        _showMessage('Autentikasi biometrik dibatalkan atau gagal.');
+        return;
+      }
+
+      final user = await _repository.validateSession(token);
+
+      if (user == null) {
+        if (!mounted) return;
+
+        _showMessage(
+          'Sesi tidak valid atau telah kedaluwarsa. '
+          'Silakan login kembali dengan email dan password.',
+        );
+        await _checkBiometricStatus();
+        return;
+      }
+
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
+      await _openHome(user);
+    } catch (error) {
+      _showMessage(
+        'Login biometrik gagal: '
+        '${error.toString().replaceFirst('Exception: ', '')}',
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -74,14 +188,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _logout() async {
-    await _repository.logout();
+    try {
+      // Logout penuh: nonaktifkan biometrik dan hapus token.
+      await SecureStorageService.saveBiometricEnabled(false);
+      await _repository.logout();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (error) {
+      _showMessage(
+        'Gagal logout: '
+        '${error.toString().replaceFirst('Exception: ', '')}',
+      );
+    }
   }
 
   @override
@@ -192,6 +315,18 @@ class _LoginScreenState extends State<LoginScreen> {
                           )
                         : const Text('Masuk'),
                   ),
+                  const SizedBox(height: 12),
+                  if (_biometricEnabled && _biometricAvailable)
+                    OutlinedButton.icon(
+                      onPressed: _loading ? null : _loginWithBiometrics,
+                      icon: const Icon(Icons.fingerprint, size: 28),
+                      label: const Text('Masuk dengan Biometrik'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: green,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: green),
+                      ),
+                    ),
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: _loading
