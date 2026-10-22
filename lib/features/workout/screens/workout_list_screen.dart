@@ -1,460 +1,258 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../../core/theme.dart';
+import '../../../data/models/sport_model.dart';
+import '../widgets/sport_card.dart';
+import '../workout_provider.dart';
 
 class WorkoutListScreen extends StatelessWidget {
   const WorkoutListScreen({super.key});
 
-  static const Color _primary = Color(0xFFE86524);
-
-  static const List<Map<String, dynamic>> _muscleGroups = [
-    {
-      'name': 'Dada',
-      'subtitle': 'Latihan otot dada',
-      'icon': Icons.fitness_center_rounded,
-      'exercises': [
-        {
-          'name': 'Bench Press',
-          'equipment': 'Barbell',
-          'sets': 4,
-          'reps': '8–12',
-          'description': 'Latihan compound untuk melatih otot dada, triceps, dan bahu depan.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=bench+press+proper+form',
-        },
-        {
-          'name': 'Incline Dumbbell Press',
-          'equipment': 'Dumbbell',
-          'sets': 3,
-          'reps': '10–12',
-          'description': 'Variasi press dengan bangku miring untuk menargetkan bagian atas dada.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=incline+dumbbell+press+proper+form',
-        },
-        {
-          'name': 'Chest Fly',
-          'equipment': 'Dumbbell',
-          'sets': 3,
-          'reps': '12–15',
-          'description': 'Gerakan isolasi untuk melatih otot dada melalui gerakan membuka dan menutup lengan.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=dumbbell+chest+fly+proper+form',
-        },
-      ],
-    },
-    {
-      'name': 'Punggung',
-      'subtitle': 'Latihan otot punggung',
-      'icon': Icons.accessibility_new_rounded,
-      'exercises': [
-        {
-          'name': 'Lat Pulldown',
-          'equipment': 'Mesin kabel',
-          'sets': 3,
-          'reps': '10–12',
-          'description': 'Melatih otot punggung, terutama latissimus dorsi.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=lat+pulldown+proper+form',
-        },
-        {
-          'name': 'Seated Cable Row',
-          'equipment': 'Mesin kabel',
-          'sets': 3,
-          'reps': '10–12',
-          'description':
-              'Melatih punggung bagian tengah dan membantu kekuatan tarikan.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=seated+cable+row+proper+form',
-        },
-        {
-          'name': 'Dumbbell Row',
-          'equipment': 'Dumbbell',
-          'sets': 3,
-          'reps': '10–12 per sisi',
-          'description': 'Latihan tarikan satu sisi untuk melatih punggung.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=one+arm+dumbbell+row+proper+form',
-        },
-      ],
-    },
-    {
-      'name': 'Bahu',
-      'subtitle': 'Latihan otot bahu',
-      'icon': Icons.sports_gymnastics_rounded,
-      'exercises': [
-        {
-          'name': 'Shoulder Press',
-          'equipment': 'Dumbbell',
-          'sets': 3,
-          'reps': '8–12',
-          'description': 'Latihan dorong untuk melatih otot bahu.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=dumbbell+shoulder+press+proper+form',
-        },
-        {
-          'name': 'Lateral Raise',
-          'equipment': 'Dumbbell',
-          'sets': 3,
-          'reps': '12–15',
-          'description': 'Latihan isolasi untuk bagian samping otot bahu.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=dumbbell+lateral+raise+proper+form',
-        },
-      ],
-    },
-    {
-      'name': 'Biceps',
-      'subtitle': 'Latihan otot lengan depan',
-      'icon': Icons.sports_handball_rounded,
-      'exercises': [
-        {
-          'name': 'Dumbbell Curl',
-          'equipment': 'Dumbbell',
-          'sets': 3,
-          'reps': '10–12',
-          'description': 'Melatih otot biceps melalui gerakan menekuk siku.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=dumbbell+biceps+curl+proper+form',
-        },
-        {
-          'name': 'Hammer Curl',
-          'equipment': 'Dumbbell',
-          'sets': 3,
-          'reps': '10–12',
-          'description':
-              'Variasi curl dengan posisi telapak tangan saling berhadapan.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=hammer+curl+proper+form',
-        },
-      ],
-    },
-    {
-      'name': 'Triceps',
-      'subtitle': 'Latihan otot lengan belakang',
-      'icon': Icons.fitness_center_rounded,
-      'exercises': [
-        {
-          'name': 'Triceps Pushdown',
-          'equipment': 'Mesin kabel',
-          'sets': 3,
-          'reps': '10–15',
-          'description': 'Melatih otot triceps dengan gerakan meluruskan siku.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=triceps+pushdown+proper+form',
-        },
-        {
-          'name': 'Overhead Triceps Extension',
-          'equipment': 'Dumbbell',
-          'sets': 3,
-          'reps': '10–12',
-          'description': 'Latihan triceps dengan beban di atas kepala.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=overhead+dumbbell+triceps+extension+proper+form',
-        },
-      ],
-    },
-    {
-      'name': 'Kaki',
-      'subtitle': 'Latihan otot kaki',
-      'icon': Icons.directions_walk_rounded,
-      'exercises': [
-        {
-          'name': 'Squat',
-          'equipment': 'Barbell atau berat badan',
-          'sets': 3,
-          'reps': '8–12',
-          'description': 'Latihan tubuh bagian bawah untuk paha dan bokong.',
-          'videoUrl':
-              'https://www.youtube.com/results?search_query=squat+proper+form',
-        },
-        {
-          'name': 'Leg Press',
-          'equipment': 'Mesin leg press',
-          'sets': 3,
-          'reps': '10–12',
-          'description': 'Latihan dorong kaki menggunakan mesin.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=leg+press+proper+form',
-        },
-        {
-          'name': 'Romanian Deadlift',
-          'equipment': 'Barbell atau dumbbell',
-          'sets': 3,
-          'reps': '8–12',
-          'description':
-              'Melatih hamstring, bokong, dan pola gerakan hip hinge.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=romanian+deadlift+proper+form',
-        },
-      ],
-    },
-    {
-      'name': 'Perut',
-      'subtitle': 'Latihan otot inti',
-      'icon': Icons.self_improvement_rounded,
-      'exercises': [
-        {
-          'name': 'Crunch',
-          'equipment': 'Berat badan',
-          'sets': 3,
-          'reps': '12–15',
-          'description': 'Latihan dasar untuk otot perut.',
-          'videoUrl': 'https://www.youtube.com/results?search_query=abdominal+crunch+proper+form',
-        },
-        {
-          'name': 'Plank',
-          'equipment': 'Berat badan',
-          'sets': 3,
-          'reps': '30–45 detik',
-          'description':
-              'Melatih kestabilan otot inti dengan posisi tubuh lurus.',
-          'videoUrl':
-              'https://www.youtube.com/results?search_query=plank+proper+form',
-        },
-      ],
-    },
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            const Text(
-              'Workout',
-              style: TextStyle(fontSize: 27, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Pilih kelompok otot dan temukan latihan yang sesuai.',
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: _primary,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.fitness_center_rounded,
-                    color: Colors.white,
-                    size: 38,
-                  ),
-                  SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Build your strength',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 19,
-                          ),
-                        ),
-                        SizedBox(height: 5),
-                        Text(
-                          'Pelajari teknik latihan sebelum mulai mengangkat beban.',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Kelompok otot',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            ..._muscleGroups.map((group) {
-              final exercises =
-                  group['exercises'] as List<Map<String, dynamic>>;
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                clipBehavior: Clip.antiAlias,
-                child: ExpansionTile(
-                  leading: CircleAvatar(
-                    backgroundColor: _primary.withValues(alpha: 0.12),
-                    child: Icon(group['icon'] as IconData, color: _primary),
-                  ),
-                  title: Text(
-                    group['name'] as String,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    '${group['subtitle']} • ${exercises.length} latihan',
-                  ),
-                  children: exercises.map((exercise) {
-                    return ListTile(
-                      contentPadding: const EdgeInsets.fromLTRB(24, 4, 16, 4),
-                      leading: const Icon(
-                        Icons.play_circle_outline_rounded,
-                        color: _primary,
-                        size: 30,
-                      ),
-                      title: Text(exercise['name'] as String),
-                      subtitle: Text(
-                        '${exercise['equipment']} • '
-                        '${exercise['sets']} set × ${exercise['reps']}',
-                      ),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => WorkoutExerciseDetailPage(
-                              exercise: exercise,
-                              muscleGroup: group['name'] as String,
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  }).toList(),
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
+    // Provider dipasang di sini supaya app.dart tidak perlu diubah.
+    return ChangeNotifierProvider<WorkoutProvider>(
+      create: (_) => WorkoutProvider()..load(),
+      child: const _WorkoutListView(),
     );
   }
 }
 
-class WorkoutExerciseDetailPage extends StatelessWidget {
-  const WorkoutExerciseDetailPage({
-    super.key,
-    required this.exercise,
-    required this.muscleGroup,
-  });
+class _WorkoutListView extends StatefulWidget {
+  const _WorkoutListView();
 
-  final Map<String, dynamic> exercise;
-  final String muscleGroup;
+  @override
+  State<_WorkoutListView> createState() => _WorkoutListViewState();
+}
 
-  static const Color _primary = Color(0xFFE86524);
+class _WorkoutListViewState extends State<_WorkoutListView> {
+  final TextEditingController _searchController = TextEditingController();
 
-  Future<void> _openVideo(BuildContext context) async {
-    final url = exercise['videoUrl'] as String;
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
-    // Membuka hasil pencarian video YouTube di browser.
-    // Belum memerlukan package pemutar video tambahan.
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Membuka video YouTube...')));
+  void _resetFilter() {
+    _searchController.clear();
+    context.read<WorkoutProvider>().resetFilter();
+  }
 
-    // URL akan dibuka pada tahap integrasi pemutar/browser.
-    // Gunakan tombol ini untuk menampilkan instruksi sementara.
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Video demonstrasi'),
-        content: SelectableText(url),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Tutup'),
-          ),
-        ],
+  void _onSportTap(Sport sport) {
+    context.read<WorkoutProvider>().selectSport(sport);
+    // TODO(B2): buka halaman detail olahraga.
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('${sport.name} dipilih. Halaman detail menyusul.'),
+        ),
+      );
+  }
+
+  Widget _chip(String label, bool selected, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        showCheckmark: false,
+        onSelected: (_) => onTap(),
+        selectedColor: AppColors.primary.withValues(alpha: 0.28),
+        backgroundColor: AppColors.surface,
+        side: BorderSide(
+          color: selected ? AppColors.primary : AppColors.outline,
+        ),
+        labelStyle: TextStyle(
+          color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+        ),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Detail Latihan')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Container(
-            height: 190,
-            decoration: BoxDecoration(
-              color: _primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.play_circle_fill_rounded,
-                size: 76,
-                color: _primary,
-              ),
-            ),
+  Widget _sectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildResults(WorkoutProvider provider, List<Sport> sports) {
+    if (provider.loading) {
+      return const [
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 48),
+          child: Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
           ),
-          const SizedBox(height: 22),
-          Text(
-            muscleGroup.toUpperCase(),
-            style: const TextStyle(
-              color: _primary,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            exercise['name'] as String,
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Text(exercise['description'] as String),
-          const SizedBox(height: 20),
-          Row(
+        ),
+      ];
+    }
+
+    if (provider.loadError != null) {
+      return [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          child: Column(
             children: [
-              Expanded(
-                child: _InfoCard(label: 'Set', value: '${exercise['sets']}'),
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 48,
+                color: AppColors.tertiary,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _InfoCard(
-                  label: 'Repetisi',
-                  value: '${exercise['reps']}',
-                ),
+              const SizedBox(height: 12),
+              Text(
+                provider.loadError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+              TextButton(
+                onPressed: provider.load,
+                child: const Text('Coba lagi'),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          _InfoCard(label: 'Peralatan', value: exercise['equipment'] as String),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () => _openVideo(context),
-            icon: const Icon(Icons.smart_display_rounded),
-            label: const Text('Lihat video demonstrasi'),
-            style: FilledButton.styleFrom(
-              backgroundColor: _primary,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+      ];
+    }
+
+    final filter = provider.filter;
+
+    return [
+      Row(
+        children: [
+          Text(
+            '${sports.length} latihan',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'Tips latihan',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '• Mulai dengan beban yang dapat kamu kendalikan.\n'
-            '• Utamakan teknik gerakan yang benar.\n'
-            '• Hentikan latihan jika merasakan nyeri yang tidak biasa.',
-          ),
+          const Spacer(),
+          if (filter.isActive)
+            TextButton(onPressed: _resetFilter, child: const Text('Reset')),
         ],
       ),
-    );
+      const SizedBox(height: 4),
+      if (sports.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Column(
+            children: [
+              const Icon(
+                Icons.search_off_rounded,
+                size: 56,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Tidak ada latihan yang cocok',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Coba kata kunci atau filter lain.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              TextButton(
+                onPressed: _resetFilter,
+                child: const Text('Reset filter'),
+              ),
+            ],
+          ),
+        )
+      else
+        ...sports.map(
+          (sport) => SportCard(sport: sport, onTap: () => _onSportTap(sport)),
+        ),
+    ];
   }
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.label, required this.value});
-
-  final String label;
-  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: TextStyle(color: Colors.grey.shade600)),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+    final provider = context.watch<WorkoutProvider>();
+    final filter = provider.filter;
+    final sports = provider.sports;
+
+    return Scaffold(
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        children: [
+          const Text(
+            'Workout',
+            style: TextStyle(
+              fontSize: 27,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Cari dan pilih latihan yang sesuai targetmu.',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _searchController,
+            onChanged: provider.setQuery,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Cari nama, otot, atau alat',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: filter.query.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () {
+                        _searchController.clear();
+                        provider.setQuery('');
+                      },
+                    ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _sectionLabel('Kelompok otot'),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _chip('Semua', filter.category == null,
+                    () => provider.setCategory(null)),
+                for (final c in provider.categories)
+                  _chip(c, filter.category == c, () => provider.setCategory(c)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _sectionLabel('Tingkat kesulitan'),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _chip('Semua', filter.difficulty == null,
+                    () => provider.setDifficulty(null)),
+                for (final d in Difficulty.values)
+                  _chip(d.label, filter.difficulty == d,
+                      () => provider.setDifficulty(d)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          ..._buildResults(provider, sports),
+        ],
       ),
     );
   }
