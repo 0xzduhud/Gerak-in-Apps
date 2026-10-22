@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
 
 import 'core/constants.dart';
+import 'core/services/secure_storage_service.dart';
 import 'data/repositories/auth_repository.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
@@ -78,6 +80,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   final AuthRepository _repository = AuthRepository();
+  final LocalAuthentication _localAuth = LocalAuthentication();
 
   @override
   void initState() {
@@ -94,8 +97,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
     try {
       token = await _repository.getSavedToken();
-    } catch (_) {
-      token = null;
+    } catch (error) {
+      debugPrint('Gagal membaca token: $error');
     }
 
     if (!mounted) return;
@@ -107,27 +110,52 @@ class _SplashScreenState extends State<SplashScreen> {
         if (!mounted) return;
 
         if (user != null) {
+          final biometricEnabled =
+              await SecureStorageService.isBiometricEnabled();
+
+          if (!mounted) return;
+
+          if (biometricEnabled) {
+            final authenticated = await _localAuth.authenticate(
+              localizedReason: 'Verifikasi identitas untuk membuka Gerak-in',
+              biometricOnly: true,
+              persistAcrossBackgrounding: true,
+            );
+
+            if (!mounted) return;
+
+            if (!authenticated) {
+              _goToLogin();
+              return;
+            }
+          }
+
+          if (!mounted) return;
+
           Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
               builder: (_) => HomeScreen(
                 user: user,
                 repository: _repository,
-                onLogout: () async {
-                  await _repository.logout();
-                },
+                onLogout: _logout,
               ),
             ),
           );
           return;
         }
       } catch (error) {
-        debugPrint('Gagal memvalidasi sesi: $error');
+        debugPrint('Gagal memulihkan sesi: $error');
       }
     }
 
     if (!mounted) return;
-
     _goToLogin();
+  }
+
+  Future<void> _logout() async {
+    // Logout penuh dari Home setelah pemulihan sesi.
+    await SecureStorageService.saveBiometricEnabled(false);
+    await _repository.logout();
   }
 
   void _goToLogin() {
