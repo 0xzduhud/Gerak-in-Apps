@@ -87,7 +87,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   ),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear, color: Colors.grey, size: 18),
+                          icon: const Icon(
+                            Icons.clear,
+                            color: Colors.grey,
+                            size: 18,
+                          ),
                           onPressed: () {
                             _searchController.clear();
                             provider.setSearchQuery('');
@@ -192,8 +196,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
   ) {
     final String postId = post['id']?.toString() ?? '';
     final String postUserId = post['user_id']?.toString() ?? '';
-    final String targetUserId =
-        postUserId.isNotEmpty ? postUserId : (post['username']?.toString() ?? '');
+    final String targetUserId = postUserId.isNotEmpty
+        ? postUserId
+        : (post['username']?.toString() ?? '');
     final String username = post['username']?.toString() ?? 'Pengguna';
     final String content = post['content']?.toString() ?? '';
     final String? imageUrl = post['image_url']?.toString();
@@ -331,11 +336,18 @@ class _CommunityScreenState extends State<CommunityScreen> {
                         value: 'edit',
                         child: Row(
                           children: [
-                            Icon(Icons.edit_outlined, color: _primary, size: 18),
+                            Icon(
+                              Icons.edit_outlined,
+                              color: _primary,
+                              size: 18,
+                            ),
                             SizedBox(width: 10),
                             Text(
                               'Edit',
-                              style: TextStyle(color: Colors.white, fontSize: 13.5),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13.5,
+                              ),
                             ),
                           ],
                         ),
@@ -375,7 +387,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
                             SizedBox(width: 10),
                             Text(
                               'Laporkan',
-                              style: TextStyle(color: Colors.white, fontSize: 13.5),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13.5,
+                              ),
                             ),
                           ],
                         ),
@@ -560,7 +575,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
             ),
             child: const Text(
               'Hapus',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -651,7 +669,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
             ),
             child: const Text(
               'Kirim Laporan',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -782,10 +803,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                   commentText = item.toString();
                                 }
 
-                                final String? currentUid = provider.currentUserId;
+                                final String? currentUid =
+                                    provider.currentUserId;
                                 final bool isMyComment =
                                     (currentUid != null &&
-                                            commentUserId == currentUid) ||
+                                        commentUserId == currentUid) ||
                                     username == provider.currentUsername ||
                                     username == 'Saya';
 

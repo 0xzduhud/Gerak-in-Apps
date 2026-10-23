@@ -30,54 +30,54 @@ class GerakInApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CommunityProvider()),
       ],
       child: MaterialApp(
-      title: AppConstants.appName,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorScheme: const ColorScheme.dark(
-          primary: primary,
-          secondary: secondary,
-          tertiary: tertiary,
-          surface: surface,
-          onPrimary: Color(0xFF24110A),
-          onSecondary: Color(0xFF24110A),
-          onTertiary: Colors.white,
-          onSurface: foreground,
-        ),
-        scaffoldBackgroundColor: background,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: background,
-          foregroundColor: foreground,
-          centerTitle: false,
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: surface,
-          labelStyle: const TextStyle(color: secondary),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFF514744)),
+        title: AppConstants.appName,
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.dark,
+          colorScheme: const ColorScheme.dark(
+            primary: primary,
+            secondary: secondary,
+            tertiary: tertiary,
+            surface: surface,
+            onPrimary: Color(0xFF24110A),
+            onSecondary: Color(0xFF24110A),
+            onTertiary: Colors.white,
+            onSurface: foreground,
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: primary, width: 1.5),
+          scaffoldBackgroundColor: background,
+          appBarTheme: const AppBarTheme(
+            backgroundColor: background,
+            foregroundColor: foreground,
+            centerTitle: false,
           ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primary,
-            foregroundColor: const Color(0xFF24110A),
-            minimumSize: const Size.fromHeight(50),
-            shape: RoundedRectangleBorder(
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: surface,
+            labelStyle: const TextStyle(color: secondary),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+            enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFF514744)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: primary, width: 1.5),
+            ),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primary,
+              foregroundColor: const Color(0xFF24110A),
+              minimumSize: const Size.fromHeight(50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
           ),
         ),
+        home: const SplashScreen(),
       ),
-      home: const SplashScreen(),
-    ),
     );
   }
 }
