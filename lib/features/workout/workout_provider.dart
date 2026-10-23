@@ -2,14 +2,11 @@ import 'package:flutter/foundation.dart';
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-
 import '../../data/models/activity_model.dart';
 import '../../data/models/sport_model.dart';
 import '../../data/repositories/sport_repository.dart';
 import 'services/step_detector.dart';
-import '../../data/models/sport_model.dart';
-import '../../data/repositories/sport_repository.dart';
+
 
 /// Search + filter kategori/kesulitan (PBI-7.3).
 class SportFilter {
