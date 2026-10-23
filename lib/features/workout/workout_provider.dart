@@ -6,7 +6,8 @@ import '../../data/models/activity_model.dart';
 import '../../data/models/sport_model.dart';
 import '../../data/repositories/sport_repository.dart';
 import 'services/step_detector.dart';
-
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Search + filter kategori/kesulitan (PBI-7.3).
 class SportFilter {
@@ -94,6 +95,63 @@ class InMemoryWorkoutPlanStore implements WorkoutPlanStore {
   Future<WorkoutPlan?> loadLast() async => _last;
 }
 
+// ============================================================================
+// [PBI-7.5] SharedPrefsWorkoutPlanStore — penyimpanan pilihan sesi yang tahan
+// restart aplikasi. Digabung di file ini; dipasang dari WorkoutListScreen
+// (default WorkoutProvider tetap InMemory supaya tes lama tidak berubah).
+// ============================================================================
+class SharedPrefsWorkoutPlanStore implements WorkoutPlanStore {
+  SharedPrefsWorkoutPlanStore({required SportRepository repository})
+      : _repository = repository;
+
+  static const _key = 'last_workout_plan';
+
+  final SportRepository _repository;
+
+  @override
+  Future<void> save(WorkoutPlan plan) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _key,
+      jsonEncode({
+        'sport_id': plan.sport.id,
+        'target_type': plan.targetType.name,
+        'target_value': plan.targetValue,
+        'duration_minutes': plan.durationMinutes,
+        'created_at': plan.createdAt.toIso8601String(),
+      }),
+    );
+  }
+
+  @override
+  Future<WorkoutPlan?> loadLast() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_key);
+      if (raw == null) return null;
+
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final sports = await _repository.loadAll();
+      final sport = sports.where((s) => s.id == json['sport_id']).firstOrNull;
+      if (sport == null) return null;
+
+      return WorkoutPlan(
+        sport: sport,
+        targetType:
+            TargetType.values.asNameMap()[json['target_type']] ??
+            TargetType.bebas,
+        targetValue: json['target_value'] as int,
+        durationMinutes: json['duration_minutes'] as int,
+        createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
+      );
+    } catch (_) {
+      // Data tersimpan rusak: abaikan, jangan crash.
+      return null;
+    }
+  }
+}
+// ===================== AKHIR [PBI-7.5] SharedPrefsWorkoutPlanStore ==========
+
 class WorkoutProvider extends ChangeNotifier {
   WorkoutProvider({SportRepository? repository, WorkoutPlanStore? store})
     : _repository = repository ?? SportRepository(),
@@ -125,7 +183,7 @@ class WorkoutProvider extends ChangeNotifier {
   String? get error => _error;
   int get estimatedKcal => _selected?.estimateKcal(_duration) ?? 0;
 
-  Future<void> load() async {
+    Future<void> load() async {
     _loading = true;
     _loadError = null;
     notifyListeners();
@@ -134,8 +192,23 @@ class WorkoutProvider extends ChangeNotifier {
     } catch (e) {
       _loadError = 'Gagal memuat data olahraga: $e';
     }
+    await _restoreLastPlan();
     _loading = false;
     notifyListeners();
+  }
+
+  /// Mengembalikan pilihan sesi terakhir (PBI-7.5).
+  Future<void> _restoreLastPlan() async {
+    try {
+      final plan = await _store.loadLast();
+      if (plan == null) return;
+      _selected = plan.sport;
+      _targetType = plan.targetType;
+      _targetValue = plan.targetValue;
+      _duration = plan.durationMinutes;
+    } catch (_) {
+      // Gagal memulihkan tidak boleh menghalangi daftar olahraga tampil.
+    }
   }
 
   void setQuery(String value) {

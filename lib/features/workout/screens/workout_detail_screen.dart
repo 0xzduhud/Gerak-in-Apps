@@ -7,6 +7,7 @@ import '../../../core/theme.dart';
 import '../../../data/models/sport_model.dart';
 import '../workout_provider.dart';
 import '../widgets/timer_widgets.dart';
+import 'workout_session_screen.dart';
 
 String _fmtKcal(double v) => v.toStringAsFixed(v % 1 == 0 ? 0 : 1);
 
@@ -72,6 +73,20 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           const SnackBar(content: Text('Pilihan sesi latihan tersimpan.')),
         );
     }
+  }
+
+    // PBI-8.3: validasi pilihan sesi, simpan, lalu buka layar sesi.
+  Future<void> _startSession() async {
+    final provider = context.read<WorkoutProvider>();
+    FocusScope.of(context).unfocus();
+    final ok = await provider.savePlan();
+    final sport = provider.selected;
+    if (!ok || sport == null || !mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => WorkoutSessionScreen(sport: sport),
+      ),
+    );
   }
 
   String _targetLabel(TargetType type) => switch (type) {
@@ -283,7 +298,16 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
             ),
           ],
           const SizedBox(height: 18),
-          ElevatedButton.icon(
+                    ElevatedButton.icon(
+            onPressed: _startSession,
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: const Text('Mulai latihan'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+            ),
             onPressed: _save,
             icon: const Icon(Icons.check_rounded),
             label: const Text('Simpan pilihan sesi'),

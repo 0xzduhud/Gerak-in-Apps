@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme.dart';
 import '../../../data/models/sport_model.dart';
+import '../../../data/repositories/sport_repository.dart';
 import '../widgets/sport_card.dart';
 import 'workout_detail_screen.dart';
 import '../workout_provider.dart';
@@ -14,7 +15,13 @@ class WorkoutListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // Provider dipasang di sini supaya app.dart tidak perlu diubah.
     return ChangeNotifierProvider<WorkoutProvider>(
-      create: (_) => WorkoutProvider()..load(),
+      create: (_) {
+        final repository = SportRepository();
+        return WorkoutProvider(
+          repository: repository,
+          store: SharedPrefsWorkoutPlanStore(repository: repository),
+        )..load();
+      },
       child: const _WorkoutListView(),
     );
   }
