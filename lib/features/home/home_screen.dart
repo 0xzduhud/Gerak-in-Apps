@@ -14,6 +14,7 @@ import '../progress/progress_screen.dart';
 import '../schedule/schedule_screen.dart';
 import '../workout/screens/workout_list_screen.dart';
 import 'home_widgets.dart';
+import '../../data/repositories/activity_repository.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -33,6 +34,33 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+
+
+  // PBI-8.7: total aktivitas hari ini untuk card Daily Activity.
+  final ActivityRepository _activities = ActivityRepository();
+  DailyTotals _today = DailyTotals.empty;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadToday();
+  }
+
+  Future<void> _loadToday() async {
+    try {
+      final totals = await _activities.totalsForDay(DateTime.now());
+      if (!mounted) return;
+      // Log sementara untuk verifikasi di Edge/HP; boleh dihapus.
+      debugPrint(
+        'Total hari ini: langkah=${totals.steps} '
+        'detik=${totals.durationSeconds} kkal=${totals.calories.toStringAsFixed(1)}',
+      );
+      setState(() => _today = totals);
+    } catch (e) {
+      // Gagal membaca data tidak boleh merusak Home; tetap tampil nol.
+      debugPrint('Gagal memuat aktivitas hari ini: $e');
+    }
+  }
 
   String get _displayName {
     final fullName = widget.user['full_name']?.toString().trim();
@@ -128,10 +156,12 @@ class _HomeScreenState extends State<HomeScreen> {
           : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
+          onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
           });
+          // Kembali ke Home: muat ulang total (sesi baru mungkin baru selesai).
+          if (index == 0) _loadToday();
         },
         destinations: const [
           NavigationDestination(
@@ -178,7 +208,11 @@ class _HomeScreenState extends State<HomeScreen> {
           onNotificationTap: () => _open(const NotificationScreen()),
         ),
         const SizedBox(height: 20),
-        const DailyActivityCard(),
+        DailyActivityCard(
+          steps: _today.steps,
+          calories: _today.calories.round(),
+          distanceKm: _today.distanceMeters / 1000,
+        ),
         const SizedBox(height: 16),
         const AiRecommendationCard(),
         const SizedBox(height: 24),

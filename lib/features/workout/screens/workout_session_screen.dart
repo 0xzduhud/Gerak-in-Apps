@@ -7,6 +7,7 @@ import '../../../core/theme.dart';
 import '../../../data/models/sport_model.dart';
 import '../services/step_detector.dart';
 import '../workout_provider.dart';
+import '../../../data/repositories/activity_repository.dart';
 
 String _fmtDuration(Duration d) {
   String two(int n) => n.toString().padLeft(2, '0');
@@ -246,6 +247,32 @@ class _Controls extends StatelessWidget {
   final Sport sport;
   final AccelerometerService accelerometer;
 
+  // PBI-8.6: akhiri sesi lalu simpan hasilnya ke database lokal.
+  Future<void> _finishAndSave(
+    BuildContext context,
+    WorkoutSessionProvider session,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final summary = session.finish();
+    // Sesi yang langsung dihentikan (tanpa waktu dan langkah) tidak disimpan.
+    if (summary == null ||
+        (summary.durationSeconds == 0 && summary.steps == 0)) {
+      return;
+    }
+    try {
+      await ActivityRepository().save(summary);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Hasil sesi tersimpan.')));
+    } catch (e) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Gagal menyimpan hasil sesi: $e')),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = context.read<WorkoutSessionProvider>();
@@ -283,7 +310,7 @@ class _Controls extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: session.finish,
+                onPressed: () => _finishAndSave(context, session),
                 icon: const Icon(Icons.stop_rounded),
                 label: const Text('Selesai'),
               ),
