@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme.dart';
 import '../../../data/models/sport_model.dart';
 import '../widgets/sport_card.dart';
+import 'workout_detail_screen.dart';
 import '../workout_provider.dart';
 
 class WorkoutListScreen extends StatelessWidget {
@@ -40,16 +41,18 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
     context.read<WorkoutProvider>().resetFilter();
   }
 
-  void _onSportTap(Sport sport) {
-    context.read<WorkoutProvider>().selectSport(sport);
-    // TODO(B2): buka halaman detail olahraga.
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('${sport.name} dipilih. Halaman detail menyusul.'),
+    void _onSportTap(Sport sport) {
+    final provider = context.read<WorkoutProvider>();
+    provider.selectSport(sport);
+    // Provider yang sama dibagikan ke halaman detail.
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider<WorkoutProvider>.value(
+          value: provider,
+          child: const WorkoutDetailScreen(),
         ),
-      );
+      ),
+    );
   }
 
   Widget _chip(String label, bool selected, VoidCallback onTap) {

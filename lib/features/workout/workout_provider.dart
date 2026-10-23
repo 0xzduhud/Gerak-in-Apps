@@ -157,7 +157,13 @@ class WorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void selectSport(Sport sport) {
+    void selectSport(Sport sport) {
+    if (_selected?.id != sport.id) {
+      // Form dikembalikan ke default saat berganti olahraga.
+      _targetType = TargetType.bebas;
+      _targetValue = 0;
+      _duration = 30;
+    }
     _selected = sport;
     _error = null;
     notifyListeners();

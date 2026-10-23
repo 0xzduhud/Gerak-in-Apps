@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gerakinapps/data/models/sport_model.dart';
 import 'package:gerakinapps/data/repositories/sport_repository.dart';
+import 'package:gerakinapps/features/workout/widgets/timer_widgets.dart';
 import 'package:gerakinapps/features/workout/workout_provider.dart';
 
 const _json = '''
@@ -83,5 +84,26 @@ void main() {
     expect(p.estimatedKcal, 140);
     expect(await p.savePlan(), true);
     expect(p.error, isNull);
+  });
+
+    test('ganti olahraga mengembalikan form ke default', () async {
+    final p = await makeProvider();
+    p.selectSport(p.sports.first);
+    p.setTargetType(TargetType.kalori);
+    p.setTargetValue(300);
+    p.setDuration(45);
+    p.selectSport(p.sports[1]);
+    expect(p.targetType, TargetType.bebas);
+    expect(p.targetValue, 0);
+    expect(p.duration, 30);
+  });
+
+    test('format stopwatch dan jam', () {
+    expect(
+      formatStopwatch(const Duration(minutes: 1, seconds: 5, milliseconds: 230)),
+      '01:05.23',
+    );
+    expect(formatStopwatch(const Duration(hours: 1, minutes: 2, seconds: 3)), '1:02:03');
+    expect(formatClock(75), '01:15');
   });
 }

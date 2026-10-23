@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+
 import '../../../core/theme.dart';
 import '../../../data/models/sport_model.dart';
+
 
 class SportCard extends StatelessWidget {
   const SportCard({super.key, required this.sport, required this.onTap});
