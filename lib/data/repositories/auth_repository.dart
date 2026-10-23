@@ -1,115 +1,167 @@
-import 'dart:convert';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:http/http.dart' as http;
-
-import '../../core/constants.dart';
 import '../../core/services/secure_storage_service.dart';
 
 class AuthRepository {
+  AuthRepository();
+
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  /// Registrasi akun melalui Supabase Auth.
+  ///
+  /// Username dan nama lengkap disimpan sebagai metadata Auth.
+  /// Sinkronisasi profil serta password_hash dilakukan oleh Edge Function
+  /// yang akan kita siapkan berikutnya.
   Future<Map<String, dynamic>> register({
     required String username,
     required String email,
     required String password,
     required String fullName,
   }) async {
-    final response = await http
-        .post(
-          Uri.parse(AppConstants.registerEndpoint),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'username': username,
-            'email': email,
-            'password': password,
-            'full_name': fullName,
-          }),
-        )
-        .timeout(const Duration(seconds: 30));
+    try {
+      final response = await _supabase.auth.signUp(
+        email: email.trim(),
+        password: password,
+        data: {'username': username.trim(), 'full_name': fullName.trim()},
+      );
 
-    return _handleResponse(response);
+      final authUser = response.user;
+      if (authUser == null) {
+        throw Exception('Supabase tidak mengembalikan data akun.');
+      }
+
+      final session = response.session;
+
+      // Jika konfirmasi email aktif, sesi bisa belum tersedia.
+      // Akun Auth sudah dibuat; profil akan disinkronkan setelah login.
+      if (session == null) {
+        return {
+          'success': true,
+          'pending_confirmation': true,
+          'user': {
+            'auth_user_id': authUser.id,
+            'email': authUser.email ?? email.trim(),
+            'username': username.trim(),
+            'full_name': fullName.trim(),
+          },
+        };
+      }
+
+      final profile = await _syncProfile(password: password);
+
+      return {'success': true, 'token': session.accessToken, 'user': profile};
+    } on AuthException catch (error) {
+      throw Exception(error.message);
+    } on FunctionException catch (error) {
+      throw Exception(
+        'Akun Auth dibuat, tetapi sinkronisasi profil gagal. '
+        'Silakan coba login kembali. Detail: ${error.reasonPhrase ?? error.toString()}',
+      );
+    }
   }
 
+  /// Login menggunakan kredensial resmi Supabase Auth.
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
   }) async {
-    final response = await http
-        .post(
-          Uri.parse(AppConstants.loginEndpoint),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'email': email, 'password': password}),
-        )
-        .timeout(const Duration(seconds: 30));
-
-    return _handleResponse(response);
-  }
-
-  Future<Map<String, dynamic>?> validateSession(String token) async {
-    final response = await http
-        .get(
-          Uri.parse(AppConstants.sessionEndpoint),
-          headers: {'Authorization': 'Bearer $token'},
-        )
-        .timeout(const Duration(seconds: 15));
-
-    final decoded = _decodeResponse(response);
-
-    if (response.statusCode == 200 &&
-        decoded['success'] == true &&
-        decoded['user'] is Map<String, dynamic>) {
-      return decoded['user'] as Map<String, dynamic>;
-    }
-
-    if (response.statusCode == 401) {
-      await logout();
-    }
-
-    return null;
-  }
-
-  Map<String, dynamic> _decodeResponse(http.Response response) {
     try {
-      final decoded = jsonDecode(response.body);
+      final response = await _supabase.auth.signInWithPassword(
+        email: email.trim(),
+        password: password,
+      );
 
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
+      final session = response.session;
+
+      if (session == null || response.user == null) {
+        throw Exception('Sesi login tidak berhasil dibuat.');
       }
-    } on FormatException {
-      throw Exception('Respons server tidak valid.');
-    }
 
-    throw Exception('Format respons server tidak dikenali.');
+      final profile = await _syncProfile(password: password);
+
+      return {'success': true, 'token': session.accessToken, 'user': profile};
+    } on AuthException catch (error) {
+      throw Exception(error.message);
+    } on FunctionException catch (error) {
+      throw Exception(
+        'Login berhasil, tetapi profil gagal dimuat. '
+        'Coba login kembali. Detail: ${error.reasonPhrase ?? error.toString()}',
+      );
+    }
   }
 
-  Map<String, dynamic> _handleResponse(http.Response response) {
-    final decoded = _decodeResponse(response);
+  /// Memvalidasi sesi Supabase dan mengambil profil pengguna.
+  Future<Map<String, dynamic>?> validateSession(String token) async {
+    try {
+      final session = _supabase.auth.currentSession;
+      final user = _supabase.auth.currentUser;
 
-    if (response.statusCode >= 200 &&
-        response.statusCode < 300 &&
-        decoded['success'] == true) {
-      final token = decoded['token'];
-
-      if (token is! String || token.isEmpty) {
-        throw Exception('Token sesi tidak ditemukan.');
+      if (session == null || user == null || session.accessToken != token) {
+        return null;
       }
 
-      return decoded;
-    }
+      final response = await _supabase
+          .from('users')
+          .select()
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
 
-    throw Exception(
-      decoded['message']?.toString() ??
-          'Permintaan gagal (${response.statusCode}).',
+      if (response == null) {
+        return null;
+      }
+
+      return Map<String, dynamic>.from(response);
+    } on AuthException {
+      return null;
+    } on PostgrestException {
+      return null;
+    }
+  }
+
+  /// Menyinkronkan profil melalui Edge Function tepercaya.
+  ///
+  /// Password hanya dikirim melalui HTTPS ke fungsi server untuk
+  /// menghasilkan hash tambahan. Password tidak disimpan dalam database.
+  Future<Map<String, dynamic>> _syncProfile({required String password}) async {
+    final response = await _supabase.functions.invoke(
+      'sync-user-profile',
+      body: {'password': password},
     );
+
+    final data = response.data;
+
+    if (response.status < 200 ||
+        response.status >= 300 ||
+        data is! Map ||
+        data['success'] != true ||
+        data['user'] is! Map) {
+      throw Exception(
+        data is Map
+            ? (data['message']?.toString() ?? 'Sinkronisasi profil gagal.')
+            : 'Respons sinkronisasi profil tidak valid.',
+      );
+    }
+
+    return Map<String, dynamic>.from(data['user'] as Map);
   }
 
+  /// Supabase Flutter mengelola dan menyimpan sesi secara otomatis.
+  /// Metode ini dipertahankan untuk kompatibilitas dengan layar lama.
   Future<void> saveSession(String token) async {
-    await SecureStorageService.saveToken(token);
+    // Tidak perlu menyimpan token secara manual.
+    // Sesi dikelola oleh Supabase Auth.
   }
 
   Future<void> logout() async {
-    await SecureStorageService.clearToken();
+    try {
+      await _supabase.auth.signOut();
+    } finally {
+      await SecureStorageService.clearToken();
+    }
   }
 
+  /// Mengambil token sesi Supabase aktif.
   Future<String?> getSavedToken() async {
-    return SecureStorageService.getToken();
+    return _supabase.auth.currentSession?.accessToken;
   }
 }

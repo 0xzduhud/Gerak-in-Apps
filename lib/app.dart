@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:provider/provider.dart';
 
@@ -92,6 +93,8 @@ class _SplashScreenState extends State<SplashScreen> {
   final AuthRepository _repository = AuthRepository();
   final LocalAuthentication _localAuth = LocalAuthentication();
 
+  bool _checkingSession = false;
+
   @override
   void initState() {
     super.initState();
@@ -99,73 +102,92 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkSession() async {
+    if (_checkingSession) return;
+    _checkingSession = true;
+
     await Future<void>.delayed(const Duration(milliseconds: 500));
 
     if (!mounted) return;
 
-    String? token;
-
     try {
-      token = await _repository.getSavedToken();
-    } catch (error) {
-      debugPrint('Gagal membaca token: $error');
-    }
+      // Ambil sesi yang dikelola langsung oleh Supabase Auth.
+      final session = Supabase.instance.client.auth.currentSession;
 
-    if (!mounted) return;
+      if (session == null || session.accessToken.isEmpty) {
+        _goToLogin();
+        return;
+      }
 
-    if (token != null && token.isNotEmpty) {
-      try {
-        final user = await _repository.validateSession(token);
+      // Ambil profil yang terhubung dengan akun Supabase Auth.
+      final user = await _repository.validateSession(session.accessToken);
+
+      if (!mounted) return;
+
+      if (user == null) {
+        // Sesi ada, tetapi profil belum ditemukan atau tidak dapat dibaca.
+        // Jangan menampilkan Home tanpa data profil yang valid.
+        _goToLogin();
+        return;
+      }
+
+      final biometricEnabled = await SecureStorageService.isBiometricEnabled();
+
+      if (!mounted) return;
+
+      if (biometricEnabled) {
+        final canCheckBiometrics = await _localAuth.canCheckBiometrics;
+        final isDeviceSupported = await _localAuth.isDeviceSupported();
 
         if (!mounted) return;
 
-        if (user != null) {
-          final biometricEnabled =
-              await SecureStorageService.isBiometricEnabled();
-
-          if (!mounted) return;
-
-          if (biometricEnabled) {
-            final authenticated = await _localAuth.authenticate(
-              localizedReason: 'Verifikasi identitas untuk membuka Gerak-in',
-              biometricOnly: true,
-              persistAcrossBackgrounding: true,
-            );
-
-            if (!mounted) return;
-
-            if (!authenticated) {
-              _goToLogin();
-              return;
-            }
-          }
-
-          if (!mounted) return;
-
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => HomeScreen(
-                user: user,
-                repository: _repository,
-                onLogout: _logout,
-              ),
-            ),
-          );
+        if (!canCheckBiometrics && !isDeviceSupported) {
+          _goToLogin();
           return;
         }
-      } catch (error) {
-        debugPrint('Gagal memulihkan sesi: $error');
-      }
-    }
 
-    if (!mounted) return;
-    _goToLogin();
+        final authenticated = await _localAuth.authenticate(
+          localizedReason: 'Verifikasi identitas untuk membuka Gerak-in',
+          biometricOnly: true,
+          persistAcrossBackgrounding: true,
+        );
+
+        if (!mounted) return;
+
+        if (!authenticated) {
+          _goToLogin();
+          return;
+        }
+      }
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => HomeScreen(
+            user: user,
+            repository: _repository,
+            onLogout: _logout,
+          ),
+        ),
+      );
+    } on AuthException catch (error) {
+      debugPrint('Sesi Supabase bermasalah: ${error.message}');
+      if (mounted) _goToLogin();
+    } catch (error, stackTrace) {
+      debugPrint('Gagal memulihkan sesi: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (mounted) _goToLogin();
+    }
   }
 
   Future<void> _logout() async {
-    // Logout penuh dari Home setelah pemulihan sesi.
-    await SecureStorageService.saveBiometricEnabled(false);
-    await _repository.logout();
+    try {
+      await SecureStorageService.saveBiometricEnabled(false);
+      await _repository.logout();
+    } catch (error) {
+      debugPrint('Gagal logout: $error');
+    }
   }
 
   void _goToLogin() {
