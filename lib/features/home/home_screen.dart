@@ -106,7 +106,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final isHomeTab = _selectedIndex == 0;
 
     return Scaffold(
-      appBar: isHomeTab
+           // Home dan Community punya header sendiri, jadi AppBar bawaan disembunyikan
+      appBar: (isHomeTab || _selectedIndex == 3)
           ? null
           : AppBar(
               title: const Text(

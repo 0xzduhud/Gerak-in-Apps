@@ -1,1 +1,104 @@
-[]
+{
+  "questions": [
+    {
+      "question": "Otot utama yang menjadi target latihan saat melakukan push-up standar adalah?",
+      "options": [
+        "Otot Perut (Abdominals)",
+        "Otot Betis (Gastrocnemius)",
+        "Otot Punggung (Latissimus Dorsi)",
+        "Otot Dada (Pectoralis Major)"
+      ],
+      "answer": 3
+    },
+    {
+      "question": "Berapa anjuran minimal konsumsi air mineral setiap hari untuk orang dewasa dengan aktivitas fisik teratur?",
+      "options": [
+        "2 hingga 3 Liter",
+        "500 Mililiter",
+        "1 Liter",
+        "5 Liter"
+      ],
+      "answer": 0
+    },
+    {
+      "question": "Latihan kardio seperti lari, bersepeda, dan berenang bermanfaat terutama untuk meningkatkan fungsi organ apa?",
+      "options": [
+        "Hati dan Empedu",
+        "Lambung dan Ginjal",
+        "Jantung dan Paru-paru",
+        "Pankreas dan Usus"
+      ],
+      "answer": 2
+    },
+    {
+      "question": "Gerakan latihan beban 'Squat' berfokus melatih kelompok otot bagian mana?",
+      "options": [
+        "Bahu dan Lengan",
+        "Paha (Quadriceps) dan Bokong (Glutes)",
+        "Leher dan Punggung Atas",
+        "Pergelangan Tangan dan Jari"
+      ],
+      "answer": 1
+    },
+    {
+      "question": "Kapan waktu paling optimal untuk melakukan peregangan statis (static stretching)?",
+      "options": [
+        "Tepat sebelum mengangkat beban maksimal",
+        "Saat baru bangun tidur tanpa pemanasan",
+        "Di tengah-tengah set latihan berat",
+        "Saat fase pendinginan (cool down) setelah latihan"
+      ],
+      "answer": 3
+    },
+    {
+      "question": "Makronutrien apakah yang memegang peranan krusial dalam perbaikan dan pembentukan massa otot pasca latihan?",
+      "options": [
+        "Protein",
+        "Gula Sederhana",
+        "Natrium",
+        "Lemak Jenuh"
+      ],
+      "answer": 0
+    },
+    {
+      "question": "Berapa durasi tidur malam berkualitas yang umumnya direkomendasikan untuk pemulihan optimal orang dewasa?",
+      "options": [
+        "3 - 4 Jam",
+        "11 - 12 Jam",
+        "7 - 9 Jam",
+        "14 Jam"
+      ],
+      "answer": 2
+    },
+    {
+      "question": "Metode latihan interval berintensitas tinggi yang diselingi periode istirahat singkat dikenal dengan singkatan?",
+      "options": [
+        "Pilates",
+        "Yoga",
+        "LISS",
+        "HIIT"
+      ],
+      "answer": 3
+    },
+    {
+      "question": "Latihan 'Plank' termasuk ke dalam jenis kontraksi otot apa?",
+      "options": [
+        "Eksentrik (otot memanjang saat berkontraksi)",
+        "Isometrik (otot menahan beban tanpa perubahan panjang)",
+        "Konsentrik (otot memendek saat berkontraksi)",
+        "Balistik (gerakan memantul cepat)"
+      ],
+      "answer": 1
+    },
+    {
+      "question": "Apa tujuan utama dari fase pemanasan (warm-up) sebelum memulai olahraga intensitas tinggi?",
+      "options": [
+        "Menaikkan suhu tubuh dan meningkatkan elastisitas otot",
+        "Membakar seluruh cadangan glikogen otot",
+        "Menurunkan denyut jantung ke tingkat istirahat",
+        "Mempercepat timbulnya rasa lelah dan kantuk"
+      ],
+      "answer": 0
+    }
+  ]
+}

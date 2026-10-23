@@ -6,6 +6,7 @@ class SecureStorageService {
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
   static const String _tokenKey = 'gerak_in_session_token';
+  static const String _biometricKey = 'gerak_in_biometric_enabled';
 
   static Future<void> saveToken(String token) async {
     await _storage.write(key: _tokenKey, value: token);
@@ -17,5 +18,14 @@ class SecureStorageService {
 
   static Future<void> clearToken() async {
     await _storage.delete(key: _tokenKey);
+  }
+
+  static Future<void> saveBiometricEnabled(bool enabled) async {
+    await _storage.write(key: _biometricKey, value: enabled ? 'true' : 'false');
+  }
+
+  static Future<bool> isBiometricEnabled() async {
+    final value = await _storage.read(key: _biometricKey);
+    return value == 'true';
   }
 }
