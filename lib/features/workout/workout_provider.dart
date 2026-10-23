@@ -1,5 +1,13 @@
 import 'package:flutter/foundation.dart';
 
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
+import '../../data/models/activity_model.dart';
+import '../../data/models/sport_model.dart';
+import '../../data/repositories/sport_repository.dart';
+import 'services/step_detector.dart';
 import '../../data/models/sport_model.dart';
 import '../../data/repositories/sport_repository.dart';
 
@@ -20,17 +28,17 @@ class SportFilter {
     Difficulty? difficulty,
     bool clearCategory = false,
     bool clearDifficulty = false,
-  }) =>
-      SportFilter(
-        query: query ?? this.query,
-        category: clearCategory ? null : (category ?? this.category),
-        difficulty: clearDifficulty ? null : (difficulty ?? this.difficulty),
-      );
+  }) => SportFilter(
+    query: query ?? this.query,
+    category: clearCategory ? null : (category ?? this.category),
+    difficulty: clearDifficulty ? null : (difficulty ?? this.difficulty),
+  );
 
   List<Sport> apply(List<Sport> source) {
     final q = query.trim().toLowerCase();
     return source.where((s) {
-      final matchQuery = q.isEmpty ||
+      final matchQuery =
+          q.isEmpty ||
           s.name.toLowerCase().contains(q) ||
           s.category.toLowerCase().contains(q) ||
           s.equipment.toLowerCase().contains(q);
@@ -91,8 +99,8 @@ class InMemoryWorkoutPlanStore implements WorkoutPlanStore {
 
 class WorkoutProvider extends ChangeNotifier {
   WorkoutProvider({SportRepository? repository, WorkoutPlanStore? store})
-      : _repository = repository ?? SportRepository(),
-        _store = store ?? InMemoryWorkoutPlanStore();
+    : _repository = repository ?? SportRepository(),
+      _store = store ?? InMemoryWorkoutPlanStore();
 
   final SportRepository _repository;
   final WorkoutPlanStore _store;
@@ -157,7 +165,7 @@ class WorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-    void selectSport(Sport sport) {
+  void selectSport(Sport sport) {
     if (_selected?.id != sport.id) {
       // Form dikembalikan ke default saat berganti olahraga.
       _targetType = TargetType.bebas;
@@ -208,5 +216,147 @@ class WorkoutProvider extends ChangeNotifier {
     );
     notifyListeners();
     return true;
+  }
+}
+
+enum SessionState { idle, running, paused, finished }
+
+/// State sesi aktivitas: mulai, jeda, lanjut, selesai, hitung langkah.
+/// Sumber sampel sensor disuntikkan (PBI-8.1 menyambungkan sensors_plus),
+/// sehingga logika ini bisa dites tanpa HP.
+class WorkoutSessionProvider extends ChangeNotifier {
+  WorkoutSessionProvider({
+    StepDetector? detector,
+    this.body = const UserBody(),
+    DateTime Function()? now,
+  }) : _detector = detector ?? StepDetector(),
+       _now = now ?? DateTime.now;
+
+  final StepDetector _detector;
+  final UserBody body;
+  final DateTime Function() _now;
+
+  SessionState _state = SessionState.idle;
+  DateTime? _startedAt;
+  DateTime? _resumedAt;
+  Duration _accumulated = Duration.zero;
+  String? _sportId;
+  ActivitySummary? _summary;
+  StreamSubscription<AccelSample>? _subscription;
+  Timer? _ticker;
+
+  SessionState get state => _state;
+  ActivitySummary? get summary => _summary;
+  int get steps => _detector.steps;
+  double get distanceMeters => ActivityMetrics.distanceMeters(steps, body);
+  double get calories => ActivityMetrics.calories(distanceMeters, body);
+
+  Duration get elapsed {
+    final resumedAt = _resumedAt;
+    if (_state == SessionState.running && resumedAt != null) {
+      return _accumulated + _now().difference(resumedAt);
+    }
+    return _accumulated;
+  }
+
+  void start({Stream<AccelSample>? samples, String? sportId}) {
+    if (_state == SessionState.running || _state == SessionState.paused) {
+      return;
+    }
+    _detector.reset();
+    _accumulated = Duration.zero;
+    _summary = null;
+    _sportId = sportId;
+    _startedAt = _now();
+    _resumedAt = _startedAt;
+    _state = SessionState.running;
+    _subscription?.cancel();
+    _subscription = samples?.listen(addSample);
+    _startTicker();
+    notifyListeners();
+  }
+
+  void pause() {
+    if (_state != SessionState.running) return;
+    _freezeElapsed();
+    _stopTicker();
+    _state = SessionState.paused;
+    notifyListeners();
+  }
+
+  void resume() {
+    if (_state != SessionState.paused) return;
+    _resumedAt = _now();
+    _state = SessionState.running;
+    _startTicker();
+    notifyListeners();
+  }
+
+  ActivitySummary? finish() {
+    if (_state != SessionState.running && _state != SessionState.paused) {
+      return _summary;
+    }
+    _freezeElapsed();
+    _stopTicker();
+    _subscription?.cancel();
+    _subscription = null;
+    _state = SessionState.finished;
+    final result = ActivitySummary(
+      startedAt: _startedAt ?? _now(),
+      durationSeconds: _accumulated.inSeconds,
+      steps: steps,
+      distanceMeters: distanceMeters,
+      calories: calories,
+      sportId: _sportId,
+    );
+    _summary = result;
+    notifyListeners();
+    return result;
+  }
+
+  void reset() {
+    _stopTicker();
+    _subscription?.cancel();
+    _subscription = null;
+    _detector.reset();
+    _state = SessionState.idle;
+    _accumulated = Duration.zero;
+    _resumedAt = null;
+    _startedAt = null;
+    _summary = null;
+    notifyListeners();
+  }
+
+  /// Sampel hanya diproses saat sesi berjalan (diabaikan saat jeda).
+  void addSample(AccelSample sample) {
+    if (_state != SessionState.running) return;
+    if (_detector.addSample(sample) > 0) notifyListeners();
+  }
+
+  void _freezeElapsed() {
+    final resumedAt = _resumedAt;
+    if (resumedAt != null) {
+      _accumulated += _now().difference(resumedAt);
+      _resumedAt = null;
+    }
+  }
+
+  void _startTicker() {
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      notifyListeners();
+    });
+  }
+
+  void _stopTicker() {
+    _ticker?.cancel();
+    _ticker = null;
+  }
+
+  @override
+  void dispose() {
+    _stopTicker();
+    _subscription?.cancel();
+    super.dispose();
   }
 }
