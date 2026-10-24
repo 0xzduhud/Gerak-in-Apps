@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import 'app.dart';
+// ignore: unused_import
+import 'features/premium/subscription_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

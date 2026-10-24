@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'guess_move_screen.dart';
 import 'quiz_screen.dart';
+import 'target_game_screen.dart';
 
 /// [GamesMenuScreen] - Menu Pilihan Game FitMate
 /// Menampilkan pilihan mode permainan dengan desain modern, elegan, dan senada dengan tema aplikasi (Dark Mode & Aksen Oranye).
@@ -110,17 +110,16 @@ class GamesMenuScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Card Menu 2: Tebak Gerakan
+                // Card Menu 2: Tangkap Target
                 _buildGameCard(
-                  title: 'Tebak Gerakan',
-                  subtitle:
-                      'Tebak nama gerakan latihan berdasarkan visual dan petunjuk',
-                  icon: Icons.fitness_center_rounded,
+                  title: 'Tangkap Target',
+                  subtitle: 'Sentuh makanan sehat, hindari junk food dan bom. Nyawamu hanya 3!',
+                  icon: Icons.touch_app_rounded,
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const GuessMoveScreen(),
+                        builder: (context) => const TargetGameScreen(),
                       ),
                     );
                   },
@@ -147,10 +146,7 @@ class GamesMenuScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF2A2A2A),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF383838),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0xFF383838), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -169,11 +165,7 @@ class GamesMenuScreen extends StatelessWidget {
                     color: _primaryOrange.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(
-                    icon,
-                    color: _primaryOrange,
-                    size: 26,
-                  ),
+                  child: Icon(icon, color: _primaryOrange, size: 26),
                 ),
                 const SizedBox(width: 16),
 

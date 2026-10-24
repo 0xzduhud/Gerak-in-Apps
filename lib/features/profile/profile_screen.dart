@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../../core/services/secure_storage_service.dart';
+import '../premium/premium_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, required this.user, required this.onLogout});
@@ -188,6 +189,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 subtitle: Text(email),
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: ListTile(
+            leading: const Icon(
+              Icons.workspace_premium,
+              color: Color(0xFFE86524),
+              size: 28,
+            ),
+            title: const Text(
+              'FitMate Plus (Premium)',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: const Text('Buka semua fitur latihan'),
+            trailing: const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFFE86524),
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PremiumScreen()),
+              );
+            },
           ),
         ),
         const SizedBox(height: 24),

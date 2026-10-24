@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:gerakinapps/core/services/game_local_db.dart';
 import 'package:provider/provider.dart';
 
 import 'game_provider.dart';
+import 'shake_to_save.dart';
 
 /// [QuizScreen] - Layar Kuis Fitness FitMate
 /// Mengusung tema Dark Mode premium dengan aksen Oranye,
@@ -28,84 +30,108 @@ class _QuizScreenState extends State<QuizScreen> {
     super.initState();
     Future.microtask(() {
       if (!mounted) return;
-      context.read<GameProvider>().startGame(isGuessMove: false);
+      context.read<GameProvider>().startGame();
     });
+  }
+
+  /// Dipanggil setelah HP digoyang di layar hasil:
+  /// simpan skor ke SQLite lalu kembali ke Home.
+  Future<void> _saveAndGoHome() async {
+    final score = context.read<GameProvider>().score;
+    try {
+      await GameLocalDb().insertScore(
+        currentGameUserId(),
+        game: 'quiz',
+        score: score,
+      );
+    } catch (e) {
+      debugPrint('Gagal menyimpan skor kuis: $e');
+    }
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<GameProvider>();
 
-    return Scaffold(
-      backgroundColor: _bgColor,
-      appBar: AppBar(
+    // Setelah kuis selesai, pemain wajib menggoyang HP dulu (tidak bisa back).
+    return PopScope(
+      canPop: !provider.isQuizFinished,
+      child: Scaffold(
         backgroundColor: _bgColor,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.white70,
+        appBar: AppBar(
+          backgroundColor: _bgColor,
+          elevation: 0,
+          centerTitle: true,
+          automaticallyImplyLeading: false,
+          leading: provider.isQuizFinished
+              ? null
+              : IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white70,
+                  ),
+                  onPressed: () {
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                ),
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Fitness Quiz',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
           ),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            }
-          },
-        ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Fitness Quiz',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-                letterSpacing: 0.5,
+          actions: [
+            // Indikator Poin / Skor Saat Ini dengan Aksen Oranye
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _cardBorderColor),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.local_fire_department_rounded,
+                    color: _primaryOrange,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${provider.score} Poin',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
-        actions: [
-          // Indikator Poin / Skor Saat Ini dengan Aksen Oranye
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: _cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _cardBorderColor),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.local_fire_department_rounded,
-                  color: _primaryOrange,
-                  size: 16,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${provider.score} Poin',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: provider.isQuizFinished
-            ? _buildCompletionScreen(provider)
-            : (provider.activeQuestions.isEmpty
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _primaryOrange),
-                    )
-                  : _buildQuizContent(provider)),
+        body: SafeArea(
+          child: provider.isQuizFinished
+              ? _buildCompletionScreen(provider)
+              : (provider.activeQuestions.isEmpty
+                    ? const Center(
+                        child: CircularProgressIndicator(color: _primaryOrange),
+                      )
+                    : _buildQuizContent(provider)),
+        ),
       ),
     );
   }
@@ -473,54 +499,8 @@ class _QuizScreenState extends State<QuizScreen> {
             ),
             const SizedBox(height: 32),
 
-            // Tombol Main Lagi (Warna Oranye)
-            ElevatedButton.icon(
-              onPressed: () {
-                provider.startGame(isGuessMove: false);
-              },
-              icon: const Icon(Icons.replay_rounded, color: Colors.white),
-              label: const Text(
-                'Main Lagi',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryOrange,
-                minimumSize: const Size.fromHeight(52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                elevation: 0,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Tombol Kembali
-            OutlinedButton(
-              onPressed: () {
-                if (Navigator.of(context).canPop()) {
-                  Navigator.of(context).pop();
-                }
-              },
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(50),
-                side: const BorderSide(color: _cardBorderColor),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: const Text(
-                'Kembali ke Menu',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                ),
-              ),
-            ),
+            // Goyangkan HP untuk menyimpan skor, lalu kembali ke Home
+            ShakeToSaveCard(onShaken: _saveAndGoHome),
           ],
         ),
       ),

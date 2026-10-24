@@ -12,6 +12,7 @@ import 'features/auth/login_screen.dart';
 import 'features/community/community_provider.dart';
 import 'features/games/game_provider.dart';
 import 'features/home/home_screen.dart';
+import 'features/premium/subscription_provider.dart';
 
 class GerakInApp extends StatelessWidget {
   const GerakInApp({super.key});
@@ -22,6 +23,7 @@ class GerakInApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => GameProvider()),
         ChangeNotifierProvider(create: (_) => CommunityProvider()),
+        ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
       ],
       child: MaterialApp(
         title: AppConstants.appName,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/services/ai_recommendation_service.dart';
 import '../../core/utils/formatters.dart';
+import '../../data/repositories/activity_repository.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../achievement/achievement_screen.dart';
 import '../auth/login_screen.dart';
@@ -14,7 +16,6 @@ import '../progress/progress_screen.dart';
 import '../schedule/schedule_screen.dart';
 import '../workout/screens/workout_list_screen.dart';
 import 'home_widgets.dart';
-import '../../data/repositories/activity_repository.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -35,15 +36,25 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-
   // PBI-8.7: total aktivitas hari ini untuk card Daily Activity.
   final ActivityRepository _activities = ActivityRepository();
   DailyTotals _today = DailyTotals.empty;
+
+  // Rekomendasi AI (Sprint 14). Future dibuat sekali supaya tidak
+  // memanggil ulang setiap kali Home dibangun ulang.
+  Future<Map<String, dynamic>?>? _recommendationFuture;
 
   @override
   void initState() {
     super.initState();
     _loadToday();
+
+    final userId = widget.user['id']?.toString() ?? '';
+    if (userId.isNotEmpty) {
+      _recommendationFuture = AiRecommendationService().getRecommendation(
+        userId,
+      );
+    }
   }
 
   Future<void> _loadToday() async {
@@ -134,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final isHomeTab = _selectedIndex == 0;
 
     return Scaffold(
-           // Home dan Community punya header sendiri, jadi AppBar bawaan disembunyikan
+      // Home dan Community punya header sendiri, jadi AppBar bawaan disembunyikan
       appBar: (isHomeTab || _selectedIndex == 3)
           ? null
           : AppBar(
@@ -146,17 +157,18 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: IndexedStack(index: _selectedIndex, children: pages),
       ),
-      // PBI-6.7: tombol melayang chatbot di kanan bawah (khusus Home)
+      // PBI-6.7: tombol melayang chatbot di kanan bawah (khusus Home).
+      // Memakai ChatScreen.route() karena layar chat butuh ChatProvider.
       floatingActionButton: isHomeTab
           ? FloatingActionButton(
               tooltip: 'Fitness Assistant',
-              onPressed: () => _open(const ChatScreen()),
+              onPressed: () => Navigator.of(context).push(ChatScreen.route()),
               child: const Icon(Icons.smart_toy_rounded),
             )
           : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-          onDestinationSelected: (index) {
+        onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
           });
@@ -214,7 +226,8 @@ class _HomeScreenState extends State<HomeScreen> {
           distanceKm: _today.distanceMeters / 1000,
         ),
         const SizedBox(height: 16),
-        const AiRecommendationCard(),
+        // Sprint 14: rekomendasi AI dengan data Gemini
+        _buildAiRecommendationCard(),
         const SizedBox(height: 24),
         RoundMenuRow(
           items: [
@@ -241,10 +254,98 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 24),
-        CommunityFeedCard(
-          onSeeAll: () => setState(() => _selectedIndex = 3),
-        ),
+        CommunityFeedCard(onSeeAll: () => setState(() => _selectedIndex = 3)),
       ],
+    );
+  }
+
+  // Sprint 14: kartu rekomendasi AI (data dari Gemini lewat service).
+  Widget _buildAiRecommendationCard() {
+    final future = _recommendationFuture;
+
+    if (future == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text('ID Pengguna tidak ditemukan untuk rekomendasi AI.'),
+        ),
+      );
+    }
+
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+          return const Card(
+            child: ListTile(
+              leading: Icon(Icons.error_outline, color: Colors.red),
+              title: Text('Gagal memuat rekomendasi'),
+              subtitle: Text('Silakan periksa koneksi atau coba lagi nanti.'),
+            ),
+          );
+        }
+
+        final data = snapshot.data!;
+        final namaOlahraga = data['nama_olahraga']?.toString() ?? 'Istirahat';
+        final alasan = data['alasan']?.toString() ?? '';
+
+        return Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_awesome, color: Color(0xFFE86524)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Hari ini: $namaOlahraga',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(alasan),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton(
+                    onPressed: () {
+                      // Pindah ke tab Workout (index 2) sesuai flow aplikasi
+                      setState(() {
+                        _selectedIndex = 2;
+                      });
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF16856B),
+                    ),
+                    child: const Text('Mulai Workout'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
