@@ -7,6 +7,8 @@ import '../maps/maps_screen.dart';
 import '../workout/screens/workout_list_screen.dart';
 import '../community/community_screen.dart';
 import '../games/games_menu_screen.dart';
+// TAMBAHAN: Impor service AI Recommendation
+import '../../core/services/ai_recommendation_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -185,6 +187,16 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 24),
+
+        // TAMBAHAN: Rekomendasi AI Section
+        const Text(
+          'Rekomendasi AI',
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        _buildAiRecommendationCard(),
+        const SizedBox(height: 24),
+
         const Text(
           'Menu utama',
           style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
@@ -214,7 +226,6 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () {
                 Navigator.push(
                   context,
-                  // Ubah bagian bawah ini dari QuizScreen menjadi GamesMenuScreen
                   MaterialPageRoute(
                     builder: (context) => const GamesMenuScreen(),
                   ),
@@ -251,6 +262,96 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  // TAMBAHAN: Fungsi untuk membangun Card Rekomendasi AI
+  Widget _buildAiRecommendationCard() {
+    final userId = widget.user['id']?.toString() ?? '';
+
+    if (userId.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text('ID Pengguna tidak ditemukan untuk rekomendasi AI.'),
+        ),
+      );
+    }
+
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: AiRecommendationService().getRecommendation(userId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+          return const Card(
+            child: ListTile(
+              leading: Icon(Icons.error_outline, color: Colors.red),
+              title: Text('Gagal memuat rekomendasi'),
+              subtitle: Text('Silakan periksa koneksi atau coba lagi nanti.'),
+            ),
+          );
+        }
+
+        final data = snapshot.data!;
+        final namaOlahraga = data['nama_olahraga']?.toString() ?? 'Istirahat';
+        final alasan = data['alasan']?.toString() ?? '';
+
+        return Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_awesome, color: Color(0xFFE86524)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Hari ini: $namaOlahraga',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(alasan),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton(
+                    onPressed: () {
+                      // Pindah ke tab Workout (index 2) sesuai flow aplikasi
+                      setState(() {
+                        _selectedIndex = 2;
+                      });
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF16856B),
+                    ),
+                    child: const Text('Mulai Workout'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
