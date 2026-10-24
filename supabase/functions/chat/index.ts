@@ -1,4 +1,3 @@
-import { getSessionUser } from "./auth.ts";
 import { handleOptions, jsonResponse } from "./cors.ts";
 import { adminDb } from "./db.ts";
 
@@ -39,41 +38,54 @@ function num(value: unknown): number | null {
 }
 
 // Menyusun ringkasan data pengguna. Kalau gagal, chat tetap jalan tanpa konteks.
+// authUserId = id akun Supabase Auth. Profil di tabel users ditautkan lewat
+// kolom auth_user_id, jadi data aktivitas dan target dicari dengan kedua id
+// (id Auth dan users.id) supaya cocok apa pun yang dipakai tabelnya.
 async function buildUserContext(
-    userId: string,
+    authUserId: string,
     fallbackName: string,
 ): Promise<string> {
     try {
-        const [profileRes, targetRes, activityRes] = await Promise.all([
-            adminDb
-                .from("users")
-                .select("full_name, height_cm, weight_kg, goal")
-                .eq("id", userId)
-                .maybeSingle(),
+        const profileRes = await adminDb
+            .from("users")
+            .select("id, full_name, height_cm, weight_kg, goal")
+            .eq("auth_user_id", authUserId)
+            .maybeSingle();
+        if (profileRes.error) console.error("Konteks users:", profileRes.error.message);
+
+        const profile = profileRes.data;
+        const userIds = [
+            ...new Set(
+                [authUserId, profile?.id].filter(
+                    (v): v is string => typeof v === "string" && v.length > 0,
+                ),
+            ),
+        ];
+
+        const [targetRes, activityRes] = await Promise.all([
             adminDb
                 .from("daily_targets")
                 .select("steps, duration_min, calories")
-                .eq("user_id", userId)
-                .maybeSingle(),
+                .in("user_id", userIds)
+                .order("updated_at", { ascending: false })
+                .limit(1),
             adminDb
                 .from("activities")
                 .select(
                     "sport_id, started_at, duration_sec, steps, distance_m, calories, reps",
                 )
-                .eq("user_id", userId)
+                .in("user_id", userIds)
                 .is("deleted_at", null)
                 .order("started_at", { ascending: false })
                 .limit(3),
         ]);
 
-        if (profileRes.error) console.error("Konteks users:", profileRes.error.message);
         if (targetRes.error) console.error("Konteks target:", targetRes.error.message);
         if (activityRes.error) console.error("Konteks aktivitas:", activityRes.error.message);
 
         const lines: string[] = [];
 
         // Profil
-        const profile = profileRes.data;
         const firstName =
             cleanText(String(profile?.full_name ?? "").split(" ")[0], 30) ||
             cleanText(fallbackName, 30);
@@ -92,7 +104,7 @@ async function buildUserContext(
         }
 
         // Target harian
-        const target = targetRes.data;
+        const target = targetRes.data?.[0];
         if (target) {
             const parts: string[] = [];
             if (num(target.steps)) parts.push(`${target.steps} langkah`);
@@ -167,15 +179,29 @@ Deno.serve(async (request: Request) => {
     }
 
     try {
-        // 1. Verifikasi sesi (token buatan app sendiri)
-        const sessionUser = await getSessionUser(request);
-        if (!sessionUser) {
+        // 1. Verifikasi sesi: token Supabase Auth milik pengguna
+        const token = (request.headers.get("Authorization") ?? "").match(
+            /^Bearer\s+(.+)$/i,
+        )?.[1];
+        if (!token) {
+            return jsonResponse(
+                { success: false, message: "Sesi tidak ditemukan." },
+                401,
+            );
+        }
+
+        const { data: authData, error: authError } = await adminDb.auth.getUser(
+            token,
+        );
+        if (authError || !authData?.user) {
             return jsonResponse(
                 { success: false, message: "Sesi tidak valid atau sudah kedaluwarsa." },
                 401,
             );
         }
-        const userId = sessionUser.id;
+        const authUser = authData.user;
+        const userId = authUser.id;
+        const displayName = String(authUser.user_metadata?.username ?? "");
 
         const geminiKey = Deno.env.get("GEMINI_API_KEY");
         if (!geminiKey) {
@@ -256,7 +282,7 @@ Deno.serve(async (request: Request) => {
         }
 
         // 4. Susun system prompt + konteks pengguna
-        const context = await buildUserContext(userId, sessionUser.username);
+        const context = await buildUserContext(userId, displayName);
         console.log("chat: konteks pengguna", context ? "ada" : "kosong");
 
         const systemPrompt = `${BASE_SYSTEM_PROMPT}

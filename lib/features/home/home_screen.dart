@@ -9,6 +9,8 @@ import '../community/community_screen.dart';
 import '../games/games_menu_screen.dart';
 // TAMBAHAN: Impor service AI Recommendation
 import '../../core/services/ai_recommendation_service.dart';
+// TAMBAHAN: Layar chatbot
+import '../chatbot/chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -195,6 +197,21 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 12),
         _buildAiRecommendationCard(),
+        const SizedBox(height: 12),
+
+        // TAMBAHAN: Pintu masuk ke chatbot
+        Card(
+          child: ListTile(
+            leading: const Icon(
+              Icons.chat_bubble_outline_rounded,
+              color: primary,
+            ),
+            title: const Text('Fitness Assistant'),
+            subtitle: const Text('Tanya seputar latihan dan kebiasaan sehat.'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(ChatScreen.route()),
+          ),
+        ),
         const SizedBox(height: 24),
 
         const Text(
