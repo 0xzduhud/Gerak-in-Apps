@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/services/biometric_service.dart';
 import '../../core/services/secure_storage_service.dart';
@@ -89,6 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
 
     try {
+      // Login utama melalui Supabase Auth.
       final result = await _repository.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
@@ -101,6 +103,24 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Respons login tidak lengkap.');
       }
 
+      // Tes endpoint activities dengan token dari login.
+      try {
+        final response = await Supabase.instance.client.functions.invoke(
+          'activities',
+          method: HttpMethod.get,
+          headers: {'Authorization': 'Bearer $token'},
+        );
+
+        debugPrint('ACTIVITIES STATUS: ${response.status}');
+        debugPrint('ACTIVITIES RESPONSE: ${response.data}');
+      } on FunctionException catch (error) {
+        debugPrint('ACTIVITIES STATUS: ${error.status}');
+        debugPrint('ACTIVITIES ERROR DETAIL: ${error.details}');
+      } catch (error) {
+        debugPrint('ACTIVITIES ERROR: $error');
+      }
+
+      // Tetap lanjut ke Home meskipun tes activities gagal.
       await _repository.saveSession(token);
 
       if (!mounted) return;
@@ -189,7 +209,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _logout() async {
     try {
-      // Logout penuh: nonaktifkan biometrik dan hapus token.
       await SecureStorageService.saveBiometricEnabled(false);
       await _repository.logout();
 
