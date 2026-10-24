@@ -34,7 +34,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _showEmailConfirmationMessage() async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(
+          Icons.mark_email_unread_outlined,
+          size: 48,
+          color: Color(0xFF16856B),
+        ),
+        title: const Text('Periksa email kamu'),
+        content: Text(
+          'Akun ${_emailController.text.trim()} berhasil didaftarkan. '
+          'Silakan buka email dan klik tautan konfirmasi dari Supabase. '
+          'Setelah email terverifikasi, kamu bisa masuk menggunakan '
+          'email dan password tersebut.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Mengerti'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
   Future<void> _register() async {
+    if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _loading = true);
@@ -47,13 +92,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
         fullName: _nameController.text.trim(),
       );
 
+      // Supabase dapat membuat akun tanpa langsung memberikan sesi
+      // jika konfirmasi email diwajibkan.
+      if (result['pending_confirmation'] == true) {
+        await _showEmailConfirmationMessage();
+        return;
+      }
+
       final token = result['token'];
       final userData = result['user'];
 
-      if (token is! String || userData is! Map) {
-        throw Exception('Respons registrasi tidak lengkap.');
+      if (token is! String || token.isEmpty || userData is! Map) {
+        throw Exception(
+          'Akun mungkin sudah dibuat, tetapi sesi atau profil '
+          'belum tersedia. Coba masuk kembali.',
+        );
       }
 
+      // Supabase Auth sudah mengelola sesi secara otomatis.
+      // saveSession dipanggil untuk menjaga kompatibilitas repository lama.
       await _repository.saveSession(token);
 
       if (!mounted) return;
@@ -71,27 +128,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
         (route) => false,
       );
     } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
-      );
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _logout() async {
-    await _repository.logout();
+    try {
+      await _repository.logout();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (error) {
+      _showMessage(
+        'Gagal logout: ${error.toString().replaceFirst('Exception: ', '')}',
+      );
+    }
   }
 
   @override
