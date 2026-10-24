@@ -143,5 +143,24 @@ class ActivityRepository {
   /// Total aktivitas pada tanggal [day] (PBI-8.7).
   Future<DailyTotals> totalsForDay(DateTime day) async =>
       DailyTotals.from(await _store.forDay(day));
+
+        /// [PBI-10.4] Riwayat aktivitas dari tanggal [from] sampai [to] (inklusif),
+  /// diurutkan dari yang terbaru.
+  Future<List<ActivitySummary>> history({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final out = <ActivitySummary>[];
+    var day = DateTime(from.year, from.month, from.day);
+    final last = DateTime(to.year, to.month, to.day);
+    var guard = 0; // pengaman: maksimal 400 hari sekali ambil
+    while (!day.isAfter(last) && guard < 400) {
+      out.addAll(await _store.forDay(day));
+      day = DateTime(day.year, day.month, day.day + 1);
+      guard++;
+    }
+    out.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    return out;
+  }
 }
 // ===================== AKHIR activity_repository.dart =======================

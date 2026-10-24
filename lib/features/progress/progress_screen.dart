@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../data/models/target_model.dart';
 import 'progress_provider.dart';
 import 'target_setting_screen.dart';
+import 'history_screen.dart';
 
 class ProgressScreen extends StatelessWidget {
   const ProgressScreen({super.key});
@@ -98,6 +99,7 @@ class _ProgressView extends StatelessWidget {
                       icon: const Icon(Icons.flag_rounded),
                       label: const Text('Atur target harian'),
                     ),
+                    const HistorySection(),
                   ],
                 ),
               ),
