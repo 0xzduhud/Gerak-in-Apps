@@ -1,3 +1,5 @@
+import '../services/background_tracking_service.dart';
+
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +10,7 @@ import '../../../data/models/sport_model.dart';
 import '../services/step_detector.dart';
 import '../workout_provider.dart';
 import '../../../data/repositories/activity_repository.dart';
+import 'dart:async';
 
 String _fmtDuration(Duration d) {
   String two(int n) => n.toString().padLeft(2, '0');
@@ -58,12 +61,57 @@ class WorkoutSessionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<WorkoutSessionProvider>(
+        return ChangeNotifierProvider<WorkoutSessionProvider>(
       create: (_) => WorkoutSessionProvider(),
-      child: _SessionView(sport: sport, accelerometer: accelerometer),
+      child: _BackgroundGuard(
+        child: _SessionView(sport: sport, accelerometer: accelerometer),
+      ),
     );
   }
 }
+
+// ============================================================================
+// [PBI-8.5] _BackgroundGuard — memperbarui notifikasi layanan tiap 5 detik dan
+// memastikan layanan berhenti saat layar sesi ditutup.
+// ============================================================================
+class _BackgroundGuard extends StatefulWidget {
+  const _BackgroundGuard({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_BackgroundGuard> createState() => _BackgroundGuardState();
+}
+
+class _BackgroundGuardState extends State<_BackgroundGuard> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      final session = context.read<WorkoutSessionProvider>();
+      if (session.state == SessionState.running) {
+        BackgroundTracking.update(
+          steps: session.steps,
+          elapsed: session.elapsed,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    BackgroundTracking.stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+// ===================== AKHIR [PBI-8.5] _BackgroundGuard =====================
 
 class _SessionView extends StatelessWidget {
   const _SessionView({required this.sport, required this.accelerometer});
@@ -254,6 +302,7 @@ class _Controls extends StatelessWidget {
   ) async {
     final messenger = ScaffoldMessenger.of(context);
     final summary = session.finish();
+        unawaited(BackgroundTracking.stop()); // PBI-8.5
     // Sesi yang langsung dihentikan (tanpa waktu dan langkah) tidak disimpan.
     if (summary == null ||
         (summary.durationSeconds == 0 && summary.steps == 0)) {
@@ -282,11 +331,16 @@ class _Controls extends StatelessWidget {
 
     switch (state) {
       case SessionState.idle:
-        return ElevatedButton.icon(
-          onPressed: () => session.start(
-            samples: accelerometer.samples(),
-            sportId: sport.id,
-          ),
+                return ElevatedButton.icon(
+          onPressed: () async {
+            // PBI-8.5: nyalakan layanan latar belakang dulu, lalu mulai sesi.
+            await BackgroundTracking.start(sportName: sport.name);
+            if (!context.mounted) return;
+            session.start(
+              samples: accelerometer.samples(),
+              sportId: sport.id,
+            );
+          },
           icon: const Icon(Icons.play_arrow_rounded),
           label: const Text('Mulai'),
         );

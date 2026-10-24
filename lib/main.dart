@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import 'app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // PBI-8.5: port komunikasi UI <-> layanan latar belakang (bukan untuk web).
+  if (!kIsWeb) FlutterForegroundTask.initCommunicationPort();
 
   String errorMessage = 'Penyebab tidak diketahui.';
 
