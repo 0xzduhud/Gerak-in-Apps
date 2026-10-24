@@ -58,6 +58,7 @@ class MotionSessionProvider extends ChangeNotifier {
   MotionType get type => _type;
   MotionSessionState get state => _state;
   int get reps => _detector.reps;
+  int get rejectedReps => _detector.rejectedReps;
 
   /// 0..1: seberapa dekat rotasi dengan ambang hitung.
   double get gauge {
@@ -113,7 +114,9 @@ class MotionSessionProvider extends ChangeNotifier {
 
   void addAccel(AccelSample sample) {
     if (_state != MotionSessionState.running) return;
-    _receivedSamples = true;
+    // Untuk squat/push-up accelerometer hanya pendukung; yang menentukan
+    // "ada data sensor" adalah gyroscope.
+    if (!_type.usesGyroscope) _receivedSamples = true;
     final added = _detector.addAccel(sample);
     _maybeNotify(sample.timestampMs, force: added > 0);
   }
@@ -296,6 +299,20 @@ class _MotionView extends StatelessWidget {
                 '(menyusul bersama Progress).',
               ),
             ],
+
+            if (state == MotionSessionState.finished &&
+                type.usesGyroscope &&
+                session.rejectedReps > 0) ...[
+              const SizedBox(height: 10),
+              _HintCard(
+                '${session.rejectedReps} gerakan ditolak karena HP hanya '
+                'berputar tanpa badan bergerak. Jika itu repetisi asli, '
+                'ambang minAccelMs2 perlu diturunkan.',
+              ),
+            ],
+             const SizedBox(height: 24),
+            _Controls(gyroscope: gyroscope, accelerometer: accelerometer),
+
             const SizedBox(height: 24),
             _Controls(gyroscope: gyroscope, accelerometer: accelerometer),
           ],
@@ -323,7 +340,11 @@ class _Controls extends StatelessWidget {
         return ElevatedButton.icon(
           onPressed: () {
             if (session.type.usesGyroscope) {
-              session.start(gyro: gyroscope.samples());
+              // [PBI-9.4] gyroscope menghitung, accelerometer mengonfirmasi.
+              session.start(
+                gyro: gyroscope.samples(),
+                accel: accelerometer.samples(),
+              );
             } else {
               session.start(accel: accelerometer.samples());
             }

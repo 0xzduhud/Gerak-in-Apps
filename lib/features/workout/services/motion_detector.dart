@@ -55,6 +55,7 @@ class MotionProfile {
     required this.releaseRad,
     required this.minRepMs,
     required this.maxRepMs,
+    this.minAccelMs2 = 0,
   });
 
   /// Rotasi minimum (rad) dari posisi acuan agar dihitung sebagai gerakan.
@@ -67,11 +68,16 @@ class MotionProfile {
   final int minRepMs;
   final int maxRepMs;
 
+  /// [PBI-9.4] Gerakan accelerometer minimum (m/s², di luar gravitasi) yang
+  /// harus terjadi selama repetisi. 0 = filter dimatikan.
+  final double minAccelMs2;
+
   static const MotionProfile squat = MotionProfile(
     amplitudeRad: 0.45, // sekitar 26 derajat
     releaseRad: 0.18,
     minRepMs: 800,
     maxRepMs: 6000,
+    minAccelMs2: 0.3,
   );
 
   static const MotionProfile pushUp = MotionProfile(
@@ -79,6 +85,7 @@ class MotionProfile {
     releaseRad: 0.08,
     minRepMs: 500,
     maxRepMs: 5000,
+    minAccelMs2: 0.25,
   );
 
   static MotionProfile forType(MotionType type) => switch (type) {
@@ -91,11 +98,14 @@ class MotionProfile {
 enum _Phase { rest, peak }
 
 class MotionDetector {
-  MotionDetector({required this.type, MotionProfile? profile})
+  MotionDetector({required this.type, MotionProfile? profile, this.fuse = true})
       : profile = profile ?? MotionProfile.forType(type);
 
   final MotionType type;
   final MotionProfile profile;
+
+  /// [PBI-9.4] true = repetisi gyroscope harus dikonfirmasi accelerometer.
+  final bool fuse;
 
   // Konstanta lompat (accelerometer, m/s²)
   static const double freefallMs2 = 4.0;
@@ -111,6 +121,10 @@ class MotionDetector {
   static const double biasTauSec = 2.0;
   static const double anchorTauSec = 3.0;
   static const double maxGapSec = 0.5;
+  // [PBI-9.4] Penggabungan accelerometer
+  static const int accelWindowMs = 2000;
+  static const double accelBaselineTauSec = 1.0;
+  static const double maxAccelGapSec = 1.0;
 
   int _reps = 0;
 
@@ -129,8 +143,15 @@ class MotionDetector {
   int? _lastFreefallMs;
   int _lastFlightMs = 0;
   int? _lastJumpMs;
-
+// [PBI-9.4] Pelacak gerakan accelerometer untuk squat/push-up
+  double? _accelBaseline;
+  int? _accelLastTs;
+  double _accelPeak = 0;
+  int _accelPeakTs = -1000000;
+  int _accelSamples = 0;
+  int _rejected = 0;
   int get reps => _reps;
+  int get rejectedReps => _rejected;
 
   /// Rotasi saat ini dari posisi acuan (rad). Untuk umpan balik visual.
   double get excursion => _excursion;
@@ -151,6 +172,12 @@ class MotionDetector {
     _lastFreefallMs = null;
     _lastFlightMs = 0;
     _lastJumpMs = null;
+    _accelBaseline = null;
+    _accelLastTs = null;
+    _accelPeak = 0;
+    _accelPeakTs = -1000000;
+    _accelSamples = 0;
+    _rejected = 0;
   }
 
   void _snapReference() {
@@ -247,8 +274,11 @@ class MotionDetector {
           _phase = _Phase.rest;
           _excursionStartMs = null;
           if (duration >= profile.minRepMs && duration <= profile.maxRepMs) {
-            _reps++;
-            return 1;
+            if (_motionConfirmed(ts)) {
+              _reps++;
+              return 1;
+            }
+            _rejected++;
           }
           return 0;
         }
@@ -261,8 +291,13 @@ class MotionDetector {
   }
 
   /// Hanya untuk lompat. Mengembalikan 1 jika satu lompatan baru mendarat.
+  /// Lompat: mengembalikan 1 jika satu lompatan baru mendarat.
+  /// Squat/push-up: hanya mencatat gerakan untuk filter [PBI-9.4], selalu 0.
   int addAccel(AccelSample s) {
-    if (type != MotionType.jump) return 0;
+    if (type != MotionType.jump) {
+      _trackMotion(s);
+      return 0;
+    }
 
     final m = math.sqrt(s.x * s.x + s.y * s.y + s.z * s.z);
     final ts = s.timestampMs;
@@ -295,5 +330,41 @@ class MotionDetector {
       }
     }
     return 0;
+  }
+
+  // [PBI-9.4] Magnitudo accelerometer tidak berubah saat HP hanya diputar,
+  // tetapi berubah saat badan benar-benar naik-turun. Simpan puncak
+  // penyimpangannya dalam jendela waktu terakhir.
+  void _trackMotion(AccelSample s) {
+    _accelSamples++;
+    final m = math.sqrt(s.x * s.x + s.y * s.y + s.z * s.z);
+    final last = _accelLastTs;
+    final base = _accelBaseline;
+    if (base == null || last == null) {
+      _accelBaseline = m;
+      _accelLastTs = s.timestampMs;
+      return;
+    }
+    final dt = (s.timestampMs - last) / 1000.0;
+    if (dt <= 0) return;
+    _accelLastTs = s.timestampMs;
+    if (dt > maxAccelGapSec) {
+      _accelBaseline = m;
+      return;
+    }
+    final newBase = base + (dt / (accelBaselineTauSec + dt)) * (m - base);
+    _accelBaseline = newBase;
+    final d = (m - newBase).abs();
+    if (d >= _accelPeak || s.timestampMs - _accelPeakTs > accelWindowMs) {
+      _accelPeak = d;
+      _accelPeakTs = s.timestampMs;
+    }
+  }
+
+  bool _motionConfirmed(int ts) {
+    // Tanpa data accelerometer sama sekali, jangan menolak apa pun.
+    if (!fuse || profile.minAccelMs2 <= 0 || _accelSamples == 0) return true;
+    return ts - _accelPeakTs <= accelWindowMs &&
+        _accelPeak >= profile.minAccelMs2;
   }
 }
