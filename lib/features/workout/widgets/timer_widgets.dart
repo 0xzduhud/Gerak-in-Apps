@@ -2,10 +2,33 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 
 import '../../../core/theme.dart';
 
 String _two(int n) => n.toString().padLeft(2, '0');
+
+// ============================================================================
+// [PBI-7.9] _Beeper — nada pendek. Android: ToneGenerator lewat MethodChannel
+// (MainActivity.kt). Platform lain: SystemSound sebagai cadangan.
+// ============================================================================
+class _Beeper {
+  static const MethodChannel _channel = MethodChannel('gerakin/beep');
+
+  static Future<void> beep({int durationMs = 150}) async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        await _channel.invokeMethod<void>('beep', {'durationMs': durationMs});
+        return;
+      } catch (_) {
+        // jatuh ke cadangan di bawah
+      }
+    }
+    SystemSound.play(SystemSoundType.alert);
+  }
+}
+// ===================== AKHIR [PBI-7.9] _Beeper ==============================
 
 /// 01:05.23, atau 1:02:03 jika lebih dari satu jam.
 String formatStopwatch(Duration d) {
@@ -312,22 +335,22 @@ class _IntervalTimerPanelState extends State<IntervalTimerPanel> {
     });
   }
 
-  // ---- penanda getaran dan bunyi
+    // ---- penanda getaran dan bunyi
   void _cueCountdown() {
     HapticFeedback.selectionClick();
-    SystemSound.play(SystemSoundType.click);
+    _Beeper.beep(durationMs: 80);
   }
 
   void _cuePhaseChange() {
     HapticFeedback.heavyImpact();
-    SystemSound.play(SystemSoundType.alert);
+    _Beeper.beep(durationMs: 250);
   }
 
   Future<void> _cueFinish() async {
     for (var i = 0; i < 3; i++) {
       if (!mounted) return;
       HapticFeedback.heavyImpact();
-      SystemSound.play(SystemSoundType.alert);
+      _Beeper.beep(durationMs: 200);
       await Future<void>.delayed(const Duration(milliseconds: 350));
     }
   }
