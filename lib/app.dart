@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'core/constants.dart';
 import 'core/services/secure_storage_service.dart';
+import 'core/theme.dart';
 import 'data/repositories/auth_repository.dart';
 import 'features/auth/login_screen.dart';
 import 'features/community/community_provider.dart';
@@ -17,13 +18,6 @@ class GerakInApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primary = Color(0xFFE86524);
-    const secondary = Color(0xFFF09557);
-    const tertiary = Color(0xFFEE2D11);
-    const background = Color(0xFF171312);
-    const surface = Color(0xFF241F1D);
-    const foreground = Color(0xFFF5E9E4);
-
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => GameProvider()),
@@ -32,50 +26,7 @@ class GerakInApp extends StatelessWidget {
       child: MaterialApp(
         title: AppConstants.appName,
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.dark,
-          colorScheme: const ColorScheme.dark(
-            primary: primary,
-            secondary: secondary,
-            tertiary: tertiary,
-            surface: surface,
-            onPrimary: Color(0xFF24110A),
-            onSecondary: Color(0xFF24110A),
-            onTertiary: Colors.white,
-            onSurface: foreground,
-          ),
-          scaffoldBackgroundColor: background,
-          appBarTheme: const AppBarTheme(
-            backgroundColor: background,
-            foregroundColor: foreground,
-            centerTitle: false,
-          ),
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: surface,
-            labelStyle: const TextStyle(color: secondary),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFF514744)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: primary, width: 1.5),
-            ),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: const Color(0xFF24110A),
-              minimumSize: const Size.fromHeight(50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-          ),
-        ),
+        theme: AppTheme.dark,
         home: const SplashScreen(),
       ),
     );
@@ -99,7 +50,7 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     _checkSession();
-  }
+  } 
 
   Future<void> _checkSession() async {
     if (_checkingSession) return;
@@ -208,7 +159,7 @@ class _SplashScreenState extends State<SplashScreen> {
             Icon(
               Icons.directions_run_rounded,
               size: 76,
-              color: Color(0xFFE86524),
+              color: AppColors.primary,
             ),
             SizedBox(height: 20),
             Text(
@@ -216,13 +167,13 @@ class _SplashScreenState extends State<SplashScreen> {
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFFF5E9E4),
+                color: AppColors.textPrimary,
               ),
             ),
             SizedBox(height: 8),
             Text('Mulai bergerak, jaga kesehatan.'),
             SizedBox(height: 24),
-            CircularProgressIndicator(color: Color(0xFFE86524)),
+            CircularProgressIndicator(color: AppColors.primary),
           ],
         ),
       ),

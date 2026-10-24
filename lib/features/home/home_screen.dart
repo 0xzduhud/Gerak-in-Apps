@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 
+import '../../core/utils/formatters.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../achievement/achievement_screen.dart';
 import '../auth/login_screen.dart';
-import '../profile/profile_screen.dart';
-import '../maps/maps_screen.dart';
-import '../workout/screens/workout_list_screen.dart';
+import '../chatbot/chat_screen.dart';
 import '../community/community_screen.dart';
 import '../games/games_menu_screen.dart';
+import '../maps/maps_screen.dart';
+import '../notifications/notification_screen.dart';
+import '../profile/profile_screen.dart';
+import '../progress/progress_screen.dart';
+import '../schedule/schedule_screen.dart';
+import '../workout/screens/workout_list_screen.dart';
+import 'home_widgets.dart';
+import '../../data/repositories/activity_repository.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -27,6 +35,33 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
+
+  // PBI-8.7: total aktivitas hari ini untuk card Daily Activity.
+  final ActivityRepository _activities = ActivityRepository();
+  DailyTotals _today = DailyTotals.empty;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadToday();
+  }
+
+  Future<void> _loadToday() async {
+    try {
+      final totals = await _activities.totalsForDay(DateTime.now());
+      if (!mounted) return;
+      // Log sementara untuk verifikasi di Edge/HP; boleh dihapus.
+      debugPrint(
+        'Total hari ini: langkah=${totals.steps} '
+        'detik=${totals.durationSeconds} kkal=${totals.calories.toStringAsFixed(1)}',
+      );
+      setState(() => _today = totals);
+    } catch (e) {
+      // Gagal membaca data tidak boleh merusak Home; tetap tampil nol.
+      debugPrint('Gagal memuat aktivitas hari ini: $e');
+    }
+  }
+
   String get _displayName {
     final fullName = widget.user['full_name']?.toString().trim();
     final username = widget.user['username']?.toString().trim();
@@ -40,6 +75,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return 'Pengguna';
+  }
+
+  void _open(Widget page) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
   }
 
   Future<void> _handleLogout() async {
@@ -92,8 +131,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ProfileScreen(user: widget.user, onLogout: _handleLogout),
     ];
 
+    final isHomeTab = _selectedIndex == 0;
+
     return Scaffold(
-      appBar: _selectedIndex == 3
+           // Home dan Community punya header sendiri, jadi AppBar bawaan disembunyikan
+      appBar: (isHomeTab || _selectedIndex == 3)
           ? null
           : AppBar(
               title: const Text(
@@ -104,12 +146,22 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: IndexedStack(index: _selectedIndex, children: pages),
       ),
+      // PBI-6.7: tombol melayang chatbot di kanan bawah (khusus Home)
+      floatingActionButton: isHomeTab
+          ? FloatingActionButton(
+              tooltip: 'Fitness Assistant',
+              onPressed: () => _open(const ChatScreen()),
+              child: const Icon(Icons.smart_toy_rounded),
+            )
+          : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
+          onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
           });
+          // Kembali ke Home: muat ulang total (sesi baru mungkin baru selesai).
+          if (index == 0) _loadToday();
         },
         destinations: const [
           NavigationDestination(
@@ -142,144 +194,57 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // PBI-6.1: susunan halaman Home
   Widget _buildHomePage() {
-    const primary = Color(0xFFE86524);
-    const green = Color(0xFF16856B);
+    final greeting = greetingByHour(DateTime.now().hour);
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      // padding bawah besar supaya card terakhir tidak tertutup tombol chatbot
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
       children: [
-        Text(
-          'Halo, $_displayName!',
-          style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold),
+        HomeHeader(
+          greeting: greeting,
+          name: firstNameOf(_displayName),
+          onNotificationTap: () => _open(const NotificationScreen()),
         ),
-        const SizedBox(height: 8),
-        const Text('Mulai bergerak, jaga kesehatan.'),
+        const SizedBox(height: 20),
+        DailyActivityCard(
+          steps: _today.steps,
+          calories: _today.calories.round(),
+          distanceKm: _today.distanceMeters / 1000,
+        ),
+        const SizedBox(height: 16),
+        const AiRecommendationCard(),
         const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: green,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.favorite_rounded, color: Colors.white, size: 32),
-              SizedBox(height: 12),
-              Text(
-                'Setiap langkah berarti!',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 21,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Catat aktivitasmu dan capai target '
-                'kebugaranmu bersama Gerak-in.',
-                style: TextStyle(color: Colors.white),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'Menu utama',
-          style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.25,
-          children: [
-            _menuCard(
+        RoundMenuRow(
+          items: [
+            HomeMenuItem(
               icon: Icons.calendar_month_rounded,
-              title: 'Schedule',
-              onTap: () => _showComingSoon('Schedule'),
+              label: 'Schedule',
+              onTap: () => _open(const ScheduleScreen()),
             ),
-            _menuCard(
+            HomeMenuItem(
+              icon: Icons.sports_esports_rounded,
+              label: 'Games',
+              onTap: () => _open(const GamesMenuScreen()),
+            ),
+            HomeMenuItem(
               icon: Icons.trending_up_rounded,
-              title: 'Progress',
-              onTap: () => _showComingSoon('Progress'),
+              label: 'Progress',
+              onTap: () => _open(const ProgressScreen()),
             ),
-            _menuCard(
-              icon: Icons.games_rounded,
-              title: 'Games',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  // Ubah bagian bawah ini dari QuizScreen menjadi GamesMenuScreen
-                  MaterialPageRoute(
-                    builder: (context) => const GamesMenuScreen(),
-                  ),
-                );
-              },
-            ),
-            _menuCard(
+            HomeMenuItem(
               icon: Icons.emoji_events_rounded,
-              title: 'Achievement',
-              onTap: () => _showComingSoon('Achievement'),
+              label: 'Achievement',
+              onTap: () => _open(const AchievementScreen()),
             ),
           ],
         ),
         const SizedBox(height: 24),
-        const Text(
-          'Aktivitas harian',
-          style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.directions_walk_rounded, color: primary),
-            title: const Text('Daily Activity'),
-            subtitle: const Text(
-              'Pemantauan langkah akan dihubungkan '
-              'dengan sensor pada sprint berikutnya.',
-            ),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () {
-              setState(() {
-                _selectedIndex = 2;
-              });
-            },
-          ),
+        CommunityFeedCard(
+          onSeeAll: () => setState(() => _selectedIndex = 3),
         ),
       ],
-    );
-  }
-
-  Widget _menuCard({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 34, color: const Color(0xFFE86524)),
-            const SizedBox(height: 10),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature akan dikembangkan pada sprint berikutnya.'),
-      ),
     );
   }
 }
