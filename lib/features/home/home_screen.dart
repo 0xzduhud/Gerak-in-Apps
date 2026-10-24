@@ -15,6 +15,8 @@ import '../schedule/schedule_screen.dart';
 import '../workout/screens/workout_list_screen.dart';
 import 'home_widgets.dart';
 import '../../data/repositories/activity_repository.dart';
+import '../../data/models/target_model.dart';
+import '../../data/repositories/target_repository.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -36,9 +38,12 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
 
-  // PBI-8.7: total aktivitas hari ini untuk card Daily Activity.
+    // PBI-8.7: total aktivitas hari ini untuk card Daily Activity.
+  // PBI-10.8: ditambah target harian untuk indikator progres.
   final ActivityRepository _activities = ActivityRepository();
+  final TargetRepository _targets = TargetRepository();
   DailyTotals _today = DailyTotals.empty;
+  TargetProgress? _progress;
 
   @override
   void initState() {
@@ -49,19 +54,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadToday() async {
     try {
       final totals = await _activities.totalsForDay(DateTime.now());
+
+      // Gagal membaca target tidak boleh menyembunyikan angka aktivitas.
+      TargetProgress? progress;
+      try {
+        progress = TargetProgress.from(await _targets.load(), totals);
+      } catch (e) {
+        debugPrint('Gagal memuat target harian: $e');
+      }
+
       if (!mounted) return;
-      // Log sementara untuk verifikasi di Edge/HP; boleh dihapus.
-      debugPrint(
-        'Total hari ini: langkah=${totals.steps} '
-        'detik=${totals.durationSeconds} kkal=${totals.calories.toStringAsFixed(1)}',
-      );
-      setState(() => _today = totals);
+      setState(() {
+        _today = totals;
+        _progress = progress;
+      });
     } catch (e) {
       // Gagal membaca data tidak boleh merusak Home; tetap tampil nol.
       debugPrint('Gagal memuat aktivitas hari ini: $e');
     }
   }
-
   String get _displayName {
     final fullName = widget.user['full_name']?.toString().trim();
     final username = widget.user['username']?.toString().trim();
@@ -77,8 +88,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Pengguna';
   }
 
-  void _open(Widget page) {
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+   Future<void> _open(Widget page) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => page),
+    );
+    // Data bisa berubah (workout selesai, target diubah) saat di halaman lain.
+    if (mounted) _loadToday();
   }
 
   Future<void> _handleLogout() async {
@@ -212,6 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
           steps: _today.steps,
           calories: _today.calories.round(),
           distanceKm: _today.distanceMeters / 1000,
+          progress: _progress,
         ),
         const SizedBox(height: 16),
         const AiRecommendationCard(),
