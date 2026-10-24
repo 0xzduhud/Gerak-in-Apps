@@ -8,6 +8,8 @@ import '../../../data/models/sport_model.dart';
 import '../workout_provider.dart';
 import '../widgets/timer_widgets.dart';
 import 'workout_session_screen.dart';
+import '../services/motion_detector.dart';
+import 'motion_mode_screen.dart';
 
 String _fmtKcal(double v) => v.toStringAsFixed(v % 1 == 0 ? 0 : 1);
 
@@ -303,6 +305,24 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
             icon: const Icon(Icons.play_arrow_rounded),
             label: const Text('Mulai latihan'),
           ),
+
+          // PBI-9.3: hanya untuk olahraga yang punya pola gerakan terdeteksi.
+          if (MotionType.fromSportId(sport.id) != null) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(50),
+              ),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => MotionModeScreen(sport: sport),
+                ),
+              ),
+              icon: const Icon(Icons.sensors_rounded),
+              label: const Text('Mode deteksi gerakan'),
+            ),
+          ],
+
           const SizedBox(height: 10),
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
