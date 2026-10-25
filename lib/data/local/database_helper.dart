@@ -3,11 +3,10 @@ import 'package:sqflite/sqflite.dart';
 
 // ============================================================================
 // [PBI-8.6] DatabaseHelper — database lokal SQLite
-// [PBI-10.1] Versi 2: menambah tabel `targets` (target harian).
-// Tabel jadwal menyusul (Sprint 12) dengan menaikkan _dbVersion.
+// [PBI-10.1] Versi 2: tabel `targets`.
+// [PBI-12.x] Versi 3: tabel `schedules` (jadwal workout).
 // Catatan: sqflite tidak berjalan di Flutter Web; di web dipakai
-// penyimpanan shared_preferences (lihat activity_repository.dart
-// dan target_repository.dart).
+// shared_preferences (lihat activity/target/schedule_repository.dart).
 // ============================================================================
 class DatabaseHelper {
   DatabaseHelper._();
@@ -15,9 +14,10 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static const String _dbName = 'gerakin.db';
-  static const int _dbVersion = 2;
+  static const int _dbVersion = 3;
   static const String tableActivities = 'activities';
   static const String tableTargets = 'targets';
+  static const String tableSchedules = 'schedules';
 
   Future<Database>? _opening;
 
@@ -58,11 +58,15 @@ class DatabaseHelper {
       'ON $tableActivities (started_at)',
     );
     await _createTargets(db);
+    await _createSchedules(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await _createTargets(db);
+    }
+    if (oldVersion < 3) {
+      await _createSchedules(db);
     }
   }
 
@@ -75,6 +79,22 @@ class DatabaseHelper {
         duration_minutes INTEGER NOT NULL,
         calories INTEGER NOT NULL,
         updated_at TEXT NOT NULL,
+        synced INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+  }
+
+  // [PBI-12.x] `start_at` = jam dinding di zona `zone_code`.
+  Future<void> _createSchedules(Database db) async {
+    await db.execute('''
+      CREATE TABLE $tableSchedules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        start_at TEXT NOT NULL,
+        zone_code TEXT NOT NULL,
+        duration_minutes INTEGER NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        done INTEGER NOT NULL DEFAULT 0,
         synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
