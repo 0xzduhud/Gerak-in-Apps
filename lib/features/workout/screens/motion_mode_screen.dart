@@ -351,9 +351,6 @@ class _MotionView extends StatelessWidget {
             ],
              const SizedBox(height: 24),
             _Controls(gyroscope: gyroscope, accelerometer: accelerometer),
-
-            const SizedBox(height: 24),
-            _Controls(gyroscope: gyroscope, accelerometer: accelerometer),
           ],
         ),
       ),
