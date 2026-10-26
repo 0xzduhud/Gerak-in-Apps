@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../../core/theme.dart';
 import '../../../data/models/sport_model.dart';
 import '../../../data/repositories/sport_repository.dart';
+import '../../premium/premium_screen.dart';
+import '../../premium/subscription_provider.dart';
 import '../widgets/sport_card.dart';
 import 'workout_detail_screen.dart';
 import '../workout_provider.dart';
@@ -48,7 +50,20 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
     context.read<WorkoutProvider>().resetFilter();
   }
 
-    void _onSportTap(Sport sport) {
+  void _openPremium() {
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const PremiumScreen()));
+  }
+
+  /// PBI-19.5: latihan premium hanya bisa dibuka pelanggan Plus.
+  void _onSportTap(Sport sport) {
+    final isPremiumUser = context.read<SubscriptionProvider>().isPremium;
+
+    if (sport.isPremium && !isPremiumUser) {
+      _showUpsell(sport);
+      return;
+    }
+
     final provider = context.read<WorkoutProvider>();
     provider.selectSport(sport);
     // Provider yang sama dibagikan ke halaman detail.
@@ -57,6 +72,73 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
         builder: (_) => ChangeNotifierProvider<WorkoutProvider>.value(
           value: provider,
           child: const WorkoutDetailScreen(),
+        ),
+      ),
+    );
+  }
+
+  /// Lembar ajakan berlangganan untuk latihan yang terkunci.
+  Future<void> _showUpsell(Sport sport) {
+    return showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.primary.withValues(alpha: 0.16),
+                ),
+                child: const Icon(
+                  Icons.lock_rounded,
+                  color: AppColors.primary,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Latihan khusus FitMate Plus',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${sport.name} hanya tersedia untuk pelanggan Plus. '
+                'Berlangganan untuk membuka semua jenis workout.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  _openPremium();
+                },
+                icon: const Icon(Icons.workspace_premium_rounded),
+                label: const Text('Lihat FitMate Plus'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(sheetContext),
+                child: const Text('Nanti saja'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -97,7 +179,42 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
     );
   }
 
-  List<Widget> _buildResults(WorkoutProvider provider, List<Sport> sports) {
+  /// Banner jumlah latihan terkunci, khusus pengguna Free.
+  Widget _buildUpgradeBanner(int lockedCount) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_outline_rounded, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '$lockedCount latihan di daftar ini terkunci. '
+              'Berlangganan FitMate Plus untuk membukanya.',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
+          ),
+          TextButton(onPressed: _openPremium, child: const Text('Lihat')),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildResults(
+    WorkoutProvider provider,
+    List<Sport> sports, {
+    required bool isPremiumUser,
+  }) {
     if (provider.loading) {
       return const [
         Padding(
@@ -137,6 +254,9 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
     }
 
     final filter = provider.filter;
+    final lockedCount = isPremiumUser
+        ? 0
+        : sports.where((sport) => sport.isPremium).length;
 
     return [
       Row(
@@ -154,6 +274,7 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
         ],
       ),
       const SizedBox(height: 4),
+      if (lockedCount > 0) _buildUpgradeBanner(lockedCount),
       if (sports.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 40),
@@ -186,7 +307,11 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
         )
       else
         ...sports.map(
-          (sport) => SportCard(sport: sport, onTap: () => _onSportTap(sport)),
+          (sport) => _SportEntry(
+            sport: sport,
+            locked: sport.isPremium && !isPremiumUser,
+            onTap: () => _onSportTap(sport),
+          ),
         ),
     ];
   }
@@ -194,6 +319,7 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<WorkoutProvider>();
+    final isPremiumUser = context.watch<SubscriptionProvider>().isPremium;
     final filter = provider.filter;
     final sports = provider.sports;
 
@@ -239,8 +365,11 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _chip('Semua', filter.category == null,
-                    () => provider.setCategory(null)),
+                _chip(
+                  'Semua',
+                  filter.category == null,
+                  () => provider.setCategory(null),
+                ),
                 for (final c in provider.categories)
                   _chip(c, filter.category == c, () => provider.setCategory(c)),
               ],
@@ -252,18 +381,69 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _chip('Semua', filter.difficulty == null,
-                    () => provider.setDifficulty(null)),
+                _chip(
+                  'Semua',
+                  filter.difficulty == null,
+                  () => provider.setDifficulty(null),
+                ),
                 for (final d in Difficulty.values)
-                  _chip(d.label, filter.difficulty == d,
-                      () => provider.setDifficulty(d)),
+                  _chip(
+                    d.label,
+                    filter.difficulty == d,
+                    () => provider.setDifficulty(d),
+                  ),
               ],
             ),
           ),
           const SizedBox(height: 16),
-          ..._buildResults(provider, sports),
+          ..._buildResults(provider, sports, isPremiumUser: isPremiumUser),
         ],
       ),
+    );
+  }
+}
+
+/// Kartu latihan. Jika terkunci: agak redup dengan ikon gembok di pojok.
+/// Ketukan tetap diteruskan ke kartu, lalu ditangani oleh [onTap].
+class _SportEntry extends StatelessWidget {
+  const _SportEntry({
+    required this.sport,
+    required this.locked,
+    required this.onTap,
+  });
+
+  final Sport sport;
+  final bool locked;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Opacity(
+          opacity: locked ? 0.6 : 1,
+          child: SportCard(sport: sport, onTap: onTap),
+        ),
+        if (locked)
+          Positioned(
+            top: 12,
+            right: 12,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.primary,
+                ),
+                child: const Icon(
+                  Icons.lock_rounded,
+                  size: 16,
+                  color: Color(0xFF24110A),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

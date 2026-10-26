@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'subscription_provider.dart';
 
@@ -13,6 +15,39 @@ class PremiumScreen extends StatelessWidget {
   static const Color _surface = Color(0xFF241F1D);
   static const Color _cardBg = Color(0xFF1B1615);
   static const Color _border = Color(0xFF2C2420);
+
+  /// Nama pemegang kartu mengikuti akun yang sedang login.
+  String _cardholderName() {
+    final meta = Supabase.instance.client.auth.currentUser?.userMetadata;
+    final name = meta?['full_name']?.toString().trim();
+    if (name != null && name.isNotEmpty) return name;
+
+    final username = meta?['username']?.toString().trim();
+    return (username != null && username.isNotEmpty) ? username : 'Pengguna';
+  }
+
+  /// Satu baris keuntungan Plus.
+  Widget _buildBenefit(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_rounded, color: _primary, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// Menampilkan modal bottom sheet untuk memilih metode pembayaran.
   void _showPaymentMethodModal(
@@ -55,8 +90,9 @@ class PremiumScreen extends StatelessWidget {
                       method,
                       style: TextStyle(
                         color: isSelected ? _primary : Colors.white,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.w500,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.w500,
                         fontSize: 14.5,
                       ),
                     ),
@@ -117,10 +153,7 @@ class PremiumScreen extends StatelessWidget {
               const SizedBox(height: 16),
               const Text(
                 'Nomor Virtual Account:',
-                style: TextStyle(
-                  color: Colors.white60,
-                  fontSize: 12.5,
-                ),
+                style: TextStyle(color: Colors.white60, fontSize: 12.5),
               ),
               const SizedBox(height: 6),
               Row(
@@ -204,11 +237,7 @@ class PremiumScreen extends StatelessWidget {
             children: [
               const Row(
                 children: [
-                  Icon(
-                    Icons.storefront_rounded,
-                    color: _primary,
-                    size: 22,
-                  ),
+                  Icon(Icons.storefront_rounded, color: _primary, size: 22),
                   SizedBox(width: 10),
                   Text(
                     'Indomaret / Alfamart',
@@ -223,10 +252,7 @@ class PremiumScreen extends StatelessWidget {
               const SizedBox(height: 16),
               const Text(
                 'Kode Pembayaran:',
-                style: TextStyle(
-                  color: Colors.white60,
-                  fontSize: 12.5,
-                ),
+                style: TextStyle(color: Colors.white60, fontSize: 12.5),
               ),
               const SizedBox(height: 6),
               Row(
@@ -338,9 +364,9 @@ class PremiumScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Cardholder Name: Muhammad Rafid Habibi',
-                style: TextStyle(
+              Text(
+                'Cardholder Name: ${_cardholderName()}',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -393,10 +419,7 @@ class PremiumScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(16.0),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      _primary.withValues(alpha: 0.25),
-                      _surface,
-                    ],
+                    colors: [_primary.withValues(alpha: 0.25), _surface],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -432,7 +455,7 @@ class PremiumScreen extends StatelessWidget {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            'Akses semua program latihan, mini-games, dan fitur eksklusif komunitas.',
+                            'Buka semua jenis workout dan konsultasi chatbot AI tanpa batas harian.',
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 12.5,
@@ -446,99 +469,63 @@ class PremiumScreen extends StatelessWidget {
                 ),
               ),
 
+              // Status langganan aktif
+              if (provider.isPremium && provider.expiresAt != null) ...[
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.green.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.verified_rounded,
+                        color: Colors.greenAccent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Langganan aktif hingga '
+                          '${DateFormat('dd/MM/yyyy').format(provider.expiresAt!)}. '
+                          'Pembayaran berikutnya memperpanjang 30 hari.',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 20),
 
-              // Bagian Manfaat Premium (BARU)
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        color: _primary,
-                        size: 18,
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Akses 50+ Program Workout Premium',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        color: _primary,
-                        size: 18,
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Lencana Eksklusif di Blockchain',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        color: _primary,
-                        size: 18,
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Konsultasi Chatbot AI Tanpa Batas',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        color: _primary,
-                        size: 18,
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Bebas Iklan',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              // Keuntungan FitMate Plus
+              const Text(
+                'KEUNTUNGAN PLUS',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.8,
+                ),
               ),
+              const SizedBox(height: 12),
+              _buildBenefit(
+                'Semua jenis workout terbuka (paket Free hanya sebagian)',
+              ),
+              _buildBenefit('Konsultasi chatbot AI tanpa batas harian'),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
               // Bagian Pemilihan Mata Uang (IDR, USD, EUR)
               const Text(
@@ -575,7 +562,9 @@ class PremiumScreen extends StatelessWidget {
                             child: Text(
                               curr,
                               style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.white60,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.white60,
                                 fontWeight: isSelected
                                     ? FontWeight.bold
                                     : FontWeight.w600,
@@ -656,10 +645,7 @@ class PremiumScreen extends StatelessWidget {
                       children: [
                         const Text(
                           'FitMate Plus Plan (1 Month)',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
+                          style: TextStyle(color: Colors.white70, fontSize: 14),
                         ),
                         Text(
                           provider.formattedPrice,
@@ -702,7 +688,7 @@ class PremiumScreen extends StatelessWidget {
 
               const SizedBox(height: 36),
 
-              // Tombol "Pay [Harga] Now"
+              // Tombol bayar (berlabel "Perpanjang" jika sudah premium)
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -753,7 +739,9 @@ class PremiumScreen extends StatelessWidget {
                           ),
                         )
                       : Text(
-                          'Pay ${provider.formattedPrice} Now',
+                          provider.isPremium
+                              ? 'Perpanjang ${provider.formattedPrice}'
+                              : 'Pay ${provider.formattedPrice} Now',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -763,6 +751,50 @@ class PremiumScreen extends StatelessWidget {
                         ),
                 ),
               ),
+
+              // Reset ke Free, khusus untuk keperluan demo
+              if (provider.isPremium) ...[
+                const SizedBox(height: 12),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: provider.isLoading
+                        ? null
+                        : () async {
+                            try {
+                              await provider.resetForDemo();
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Status premium direset ke Free (mode demo).',
+                                  ),
+                                ),
+                              );
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Reset gagal: '
+                                    '${e.toString().replaceFirst('Exception: ', '')}',
+                                  ),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
+                          },
+                    icon: const Icon(
+                      Icons.restart_alt_rounded,
+                      size: 18,
+                      color: Colors.white54,
+                    ),
+                    label: const Text(
+                      'Reset ke Free (khusus demo)',
+                      style: TextStyle(color: Colors.white54),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
             ],
           ),
