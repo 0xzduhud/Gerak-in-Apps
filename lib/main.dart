@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'core/services/notification_service.dart';
 
 import 'app.dart';
 
@@ -39,6 +40,12 @@ Future<void> main() async {
     }
 
     await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
+
+    await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
+
+    await NotificationService.instance.init(); // [PBI-13B]
+
+    runApp(const GerakInApp());
 
     runApp(const GerakInApp());
   } catch (error, stackTrace) {

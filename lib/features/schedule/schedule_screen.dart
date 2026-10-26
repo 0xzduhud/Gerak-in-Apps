@@ -6,6 +6,7 @@ import '../../core/utils/timezone_converter.dart';
 import '../../data/models/schedule_model.dart';
 import 'schedule_form_screen.dart';
 import 'schedule_provider.dart';
+import '../../core/services/notification_service.dart';
 
 // [PBI-12.x] Daftar jadwal workout dengan pilihan zona waktu tampilan.
 class ScheduleScreen extends StatelessWidget {
@@ -85,7 +86,12 @@ class _ScheduleView extends StatelessWidget {
         icon: const Icon(Icons.add_rounded),
         label: const Text('Jadwal'),
       ),
-      body: _body(context, p),
+      body: Column(
+        children: [
+          if (!p.notificationsEnabled) const _NotificationOffBanner(),
+          Expanded(child: _body(context, p)),
+        ],
+      ),
     );
   }
 
@@ -141,10 +147,7 @@ class _ScheduleView extends StatelessWidget {
           color: AppColors.surface,
           child: ListTile(
             onTap: () => _openForm(context, s),
-            leading: Checkbox(
-              value: s.done,
-              onChanged: (_) => p.toggleDone(s),
-            ),
+            leading: Checkbox(value: s.done, onChanged: (_) => p.toggleDone(s)),
             title: Text(
               s.title,
               style: TextStyle(
@@ -166,6 +169,39 @@ class _ScheduleView extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// [PBI-13B] Peringatan jika izin notifikasi dimatikan.
+class _NotificationOffBanner extends StatelessWidget {
+  const _NotificationOffBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.surfaceHigh,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.notifications_off_rounded,
+            color: AppColors.secondary,
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Notifikasi dimatikan, pengingat tidak akan berbunyi.',
+              style: TextStyle(fontSize: 13),
+            ),
+          ),
+          TextButton(
+            onPressed: () => NotificationService.instance.openSettings(),
+            child: const Text('Aktifkan'),
+          ),
+        ],
+      ),
     );
   }
 }
