@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'community_provider.dart';
 import 'create_post_screen.dart';
 
-/// [CommunityScreen] - Layar komunitas Gerak-in dengan tema gelap dan aksen warna oranye.
 class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
 
@@ -14,17 +13,20 @@ class CommunityScreen extends StatefulWidget {
 
 class _CommunityScreenState extends State<CommunityScreen> {
   static const Color _primary = Color(0xFFE86524);
-  static const Color _background = Color(0xFF171312);
-  static const Color _surface = Color(0xFF241F1D);
-  static const Color _cardBg = Color(0xFF1B1615);
-  static const Color _border = Color(0xFF2C2420);
+  static const Color _backgroundColor = Color(0xFF17172B);
+  static const Color _surfaceColor = Color(0xFF22213D);
+  static const Color _border = Color(0xFF343251);
   static const Color _likeColor = Color(0xFFFF334B);
+
+  Color get _background => _backgroundColor;
+  Color get _surface => _surfaceColor;
 
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+
     Future.microtask(() {
       if (mounted) {
         context.read<CommunityProvider>().fetchPosts();
@@ -48,7 +50,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
       backgroundColor: _background,
       appBar: AppBar(
         backgroundColor: _background,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         title: const Text(
           'Community',
@@ -62,59 +66,68 @@ class _CommunityScreenState extends State<CommunityScreen> {
       ),
       body: Column(
         children: [
-          // 1. Search Bar
+          // Search Bar
           Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 12.0,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: SizedBox(
-              height: 40.0,
+              height: 44,
               child: TextField(
                 controller: _searchController,
-                onChanged: (val) => provider.setSearchQuery(val),
-                style: const TextStyle(color: Colors.white, fontSize: 14.0),
+                onChanged: (value) {
+                  provider.setSearchQuery(value);
+                  setState(() {});
+                },
+                style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'Search members, posts...',
+                  hintText: 'Cari anggota atau postingan...',
                   hintStyle: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 14.0,
+                    color: Colors.white38,
+                    fontSize: 14,
                   ),
                   prefixIcon: const Icon(
                     Icons.search,
-                    color: Colors.grey,
-                    size: 20.0,
+                    color: Colors.white38,
+                    size: 20,
                   ),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
                           icon: const Icon(
                             Icons.clear,
-                            color: Colors.grey,
+                            color: Colors.white38,
                             size: 18,
                           ),
                           onPressed: () {
                             _searchController.clear();
                             provider.setSearchQuery('');
+                            setState(() {});
                           },
                         )
                       : null,
                   filled: true,
-                  fillColor: const Color(0xFF2A2A2A),
+                  fillColor: _surface,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(
                     vertical: 0,
-                    horizontal: 16.0,
+                    horizontal: 16,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30.0),
-                    borderSide: BorderSide.none,
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: const BorderSide(color: _border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: const BorderSide(color: _border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: const BorderSide(color: _primary),
                   ),
                 ),
               ),
             ),
           ),
 
-          // 2. Activity Feed
+          // Activity Feed
           Expanded(
             child: RefreshIndicator(
               color: _primary,
@@ -131,7 +144,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       child: SingleChildScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         child: Padding(
-                          padding: const EdgeInsets.all(32.0),
+                          padding: const EdgeInsets.all(32),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -166,6 +179,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       itemCount: filteredPosts.length,
                       itemBuilder: (context, index) {
                         final post = filteredPosts[index];
+
                         return _buildPostCard(context, provider, post);
                       },
                     ),
@@ -173,7 +187,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
           ),
         ],
       ),
-      // FAB oranye dengan ikon pensil untuk navigasi ke CreatePostScreen
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.of(
@@ -188,7 +201,86 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  /// Membangun Card Feed Postingan
+  // Membuka gambar dalam tampilan fullscreen.
+  // Mendukung zoom dengan dua jari dan tombol tutup.
+  void _showImageViewer(BuildContext context, String imageUrl) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.95),
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: EdgeInsets.zero,
+        child: SizedBox.expand(
+          child: Stack(
+            children: [
+              // Ketuk area kosong untuk menutup gambar.
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.pop(dialogContext),
+                ),
+              ),
+
+              // Gambar fullscreen dan dapat diperbesar.
+              Center(
+                child: InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 4,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+
+                      return const SizedBox(
+                        height: 200,
+                        child: Center(
+                          child: CircularProgressIndicator(color: _primary),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox(
+                        height: 200,
+                        child: Center(
+                          child: Icon(
+                            Icons.broken_image_rounded,
+                            color: Colors.white38,
+                            size: 48,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+
+              // Tombol tutup.
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton(
+                    tooltip: 'Tutup',
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Card postingan.
   Widget _buildPostCard(
     BuildContext context,
     CommunityProvider provider,
@@ -196,56 +288,86 @@ class _CommunityScreenState extends State<CommunityScreen> {
   ) {
     final String postId = post['id']?.toString() ?? '';
     final String postUserId = post['user_id']?.toString() ?? '';
+
     final String targetUserId = postUserId.isNotEmpty
         ? postUserId
         : (post['username']?.toString() ?? '');
+
     final String username = post['username']?.toString() ?? 'Pengguna';
+
+    final String rawFullName = post['full_name']?.toString().trim() ?? '';
+
+    final bool hasFullName = rawFullName.isNotEmpty;
+
+    final String displayName = hasFullName ? rawFullName : username;
+
     final String content = post['content']?.toString() ?? '';
-    final String? imageUrl = post['image_url']?.toString();
-    final String? avatarUrl = post['avatar_url']?.toString();
+
+    final String imageUrl = post['image_url']?.toString() ?? '';
+
+    final String avatarUrl = post['avatar_url']?.toString() ?? '';
+
     final String time = formatTimeAgo(post['created_at']?.toString() ?? '');
+
     final int likesCount = post['likesCount'] as int? ?? 0;
     final bool isLiked = post['isLiked'] as bool? ?? false;
+
     final List<dynamic> comments = (post['comments'] as List<dynamic>?) ?? [];
 
     final String? currentUid = provider.currentUserId;
+
     final bool isMe =
         (currentUid != null && postUserId == currentUid) ||
         username == provider.currentUsername ||
         username == 'Saya';
+
     final bool isFollowing = provider.isFollowing(targetUserId);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardBg,
-        borderRadius: BorderRadius.circular(16),
+        color: _surface,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: _border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Foto profil (CircleAvatar), Username, waktu post, tombol Follow & PopupMenuButton
+          // Header postingan.
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: _surface,
-                backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                    ? NetworkImage(avatarUrl)
+              GestureDetector(
+                onTap: avatarUrl.isNotEmpty
+                    ? () => _showImageViewer(context, avatarUrl)
                     : null,
-                child: (avatarUrl == null || avatarUrl.isEmpty)
-                    ? Text(
-                        username.isNotEmpty ? username[0].toUpperCase() : '?',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: _primary,
-                          fontSize: 16,
-                        ),
-                      )
-                    : null,
+                child: CircleAvatar(
+                  radius: 22,
+                  backgroundColor: _background,
+                  backgroundImage: avatarUrl.isNotEmpty
+                      ? NetworkImage(avatarUrl)
+                      : null,
+                  child: avatarUrl.isEmpty
+                      ? Text(
+                          displayName.isNotEmpty
+                              ? displayName[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _primary,
+                            fontSize: 16,
+                          ),
+                        )
+                      : null,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -253,16 +375,20 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      username,
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
-                      time,
+                      hasFullName ? '@$username  •  $time' : time,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white38,
                         fontSize: 12,
@@ -272,12 +398,14 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 ),
               ),
 
-              // Tombol Follow (garis luar oranye) jika bukan milik user sendiri
+              // Tombol follow.
               if (!isMe) ...[
                 SizedBox(
-                  height: 30,
+                  height: 32,
                   child: OutlinedButton(
-                    onPressed: () => provider.toggleFollow(targetUserId),
+                    onPressed: () {
+                      provider.toggleFollow(targetUserId);
+                    },
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       minimumSize: Size.zero,
@@ -287,7 +415,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                           ? _primary.withValues(alpha: 0.15)
                           : Colors.transparent,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(18),
                       ),
                     ),
                     child: Text(
@@ -303,7 +431,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 const SizedBox(width: 4),
               ],
 
-              // PopupMenuButton (titik tiga) di sudut kanan
+              // Menu titik tiga.
               PopupMenuButton<String>(
                 icon: const Icon(
                   Icons.more_vert_rounded,
@@ -373,37 +501,38 @@ class _CommunityScreenState extends State<CommunityScreen> {
                         ),
                       ),
                     ];
-                  } else {
-                    return [
-                      const PopupMenuItem<String>(
-                        value: 'report',
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.report_problem_outlined,
-                              color: Colors.orangeAccent,
-                              size: 18,
-                            ),
-                            SizedBox(width: 10),
-                            Text(
-                              'Laporkan',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ];
                   }
+
+                  return [
+                    const PopupMenuItem<String>(
+                      value: 'report',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.report_problem_outlined,
+                            color: Colors.orangeAccent,
+                            size: 18,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Laporkan',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ];
                 },
               ),
             ],
           ),
-          const SizedBox(height: 12),
 
-          // Body: Teks konten
+          const SizedBox(height: 14),
+
+          // Teks postingan.
           if (content.isNotEmpty)
             Text(
               content,
@@ -414,37 +543,45 @@ class _CommunityScreenState extends State<CommunityScreen> {
               ),
             ),
 
-          // Body: Gambar jika image_url tidak null dibungkus ClipRRect
-          if (imageUrl != null && imageUrl.isNotEmpty) ...[
+          // Foto postingan: ketuk untuk membuka fullscreen.
+          if (imageUrl.isNotEmpty) ...[
             const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                constraints: const BoxConstraints(maxHeight: 260),
-                width: double.infinity,
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) return child;
-                    return Container(
-                      height: 180,
-                      color: _surface,
-                      child: const Center(
-                        child: CircularProgressIndicator(color: _primary),
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    height: 160,
-                    color: _surface,
-                    child: const Center(
-                      child: Icon(
-                        Icons.broken_image_rounded,
-                        color: Colors.white38,
-                        size: 36,
-                      ),
-                    ),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                _showImageViewer(context, imageUrl);
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 300),
+                  width: double.infinity,
+                  color: _background,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+
+                      return const SizedBox(
+                        height: 180,
+                        child: Center(
+                          child: CircularProgressIndicator(color: _primary),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox(
+                        height: 160,
+                        child: Center(
+                          child: Icon(
+                            Icons.broken_image_rounded,
+                            color: Colors.white38,
+                            size: 36,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -453,10 +590,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
           const SizedBox(height: 14),
 
-          // Footer: Row berisi ikon Like (merah jika di-like) + jumlah, dan ikon Comment + jumlah
+          // Like dan komentar.
           Row(
             children: [
-              // Ikon Like
               InkWell(
                 borderRadius: BorderRadius.circular(20),
                 onTap: () => provider.toggleLike(postId),
@@ -488,11 +624,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 ),
               ),
               const SizedBox(width: 24),
-
-              // Ikon Comment (membuka modal bottom sheet)
               InkWell(
                 borderRadius: BorderRadius.circular(20),
-                onTap: () => _showCommentsBottomSheet(context, postId),
+                onTap: () {
+                  _showCommentsBottomSheet(context, postId);
+                },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -525,7 +661,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  /// Dialog konfirmasi hapus postingan
+  // Dialog konfirmasi hapus postingan.
   void _confirmDeletePost(
     BuildContext context,
     CommunityProvider provider,
@@ -560,11 +696,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
             onPressed: () {
               Navigator.pop(ctx);
               provider.deletePost(postId);
+
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Postingan berhasil dihapus.'),
-                  backgroundColor: _surface,
-                ),
+                const SnackBar(content: Text('Postingan berhasil dihapus.')),
               );
             },
             style: ElevatedButton.styleFrom(
@@ -586,13 +720,14 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  /// Dialog formulir laporan postingan
+  // Dialog laporan postingan.
   void _showReportDialog(
     BuildContext context,
     CommunityProvider provider,
     String postId,
   ) {
     final TextEditingController reasonController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -626,7 +761,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 hintText: 'Contoh: Spam, pelecehan, misinformasi...',
                 hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
                 filled: true,
-                fillColor: _cardBg,
+                fillColor: _background,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: _border),
@@ -651,13 +786,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
           ElevatedButton(
             onPressed: () {
               final reason = reasonController.text.trim();
+
               if (reason.isEmpty) return;
+
               Navigator.pop(ctx);
               provider.reportPost(postId, reason);
+
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Laporan berhasil dikirim. Terima kasih!'),
-                  backgroundColor: _surface,
                 ),
               );
             },
@@ -680,7 +817,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  /// Menampilkan modal bottom sheet komentar
+  // Modal komentar.
   void _showCommentsBottomSheet(BuildContext context, String postId) {
     final TextEditingController commentController = TextEditingController();
 
@@ -695,11 +832,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
         return Consumer<CommunityProvider>(
           builder: (context, provider, child) {
             final postIndex = provider.posts.indexWhere(
-              (p) => p['id'] == postId,
+              (post) => post['id'] == postId,
             );
-            if (postIndex == -1) return const SizedBox.shrink();
+
+            if (postIndex == -1) {
+              return const SizedBox.shrink();
+            }
 
             final post = provider.posts[postIndex];
+
             final List<dynamic> comments =
                 (post['comments'] as List<dynamic>?) ?? [];
 
@@ -714,7 +855,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Handle drag indicator
+                    // Indikator modal.
                     Container(
                       margin: const EdgeInsets.only(top: 12, bottom: 8),
                       width: 40,
@@ -725,7 +866,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       ),
                     ),
 
-                    // Header modal
+                    // Header komentar.
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
@@ -752,14 +893,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
                         ],
                       ),
                     ),
+
                     const Divider(color: _border, height: 1),
 
-                    // Daftar komentar
+                    // Daftar komentar.
                     Flexible(
                       child: comments.isEmpty
                           ? const Center(
                               child: Padding(
-                                padding: EdgeInsets.all(32.0),
+                                padding: EdgeInsets.all(32),
                                 child: Text(
                                   'Belum ada komentar.\nJadilah yang pertama berkomentar!',
                                   textAlign: TextAlign.center,
@@ -782,29 +924,49 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                   const Divider(color: _border, height: 16),
                               itemBuilder: (context, index) {
                                 final item = comments[index];
+
                                 final String username;
+                                final String displayName;
+                                final String avatarUrl;
                                 final String commentText;
                                 final String commentId;
                                 final String commentUserId;
 
                                 if (item is Map) {
                                   commentId = item['id']?.toString() ?? '';
+
                                   commentUserId =
                                       item['user_id']?.toString() ?? '';
+
                                   username =
                                       item['username']?.toString() ??
                                       'Pengguna';
+
+                                  final fullName =
+                                      item['full_name']?.toString().trim() ??
+                                      '';
+
+                                  displayName = fullName.isNotEmpty
+                                      ? fullName
+                                      : username;
+
+                                  avatarUrl =
+                                      item['avatar_url']?.toString() ?? '';
+
                                   commentText =
                                       item['comment']?.toString() ?? '';
                                 } else {
                                   commentId = '';
                                   commentUserId = '';
                                   username = 'Pengguna';
+                                  displayName = 'Pengguna';
+                                  avatarUrl = '';
                                   commentText = item.toString();
                                 }
 
                                 final String? currentUid =
                                     provider.currentUserId;
+
                                 final bool isMyComment =
                                     (currentUid != null &&
                                         commentUserId == currentUid) ||
@@ -819,16 +981,21 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                       backgroundColor: _primary.withValues(
                                         alpha: 0.2,
                                       ),
-                                      child: Text(
-                                        username.isNotEmpty
-                                            ? username[0].toUpperCase()
-                                            : 'P',
-                                        style: const TextStyle(
-                                          color: _primary,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
+                                      backgroundImage: avatarUrl.isNotEmpty
+                                          ? NetworkImage(avatarUrl)
+                                          : null,
+                                      child: avatarUrl.isEmpty
+                                          ? Text(
+                                              displayName.isNotEmpty
+                                                  ? displayName[0].toUpperCase()
+                                                  : 'P',
+                                              style: const TextStyle(
+                                                color: _primary,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            )
+                                          : null,
                                     ),
                                     const SizedBox(width: 10),
                                     Expanded(
@@ -837,7 +1004,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            username,
+                                            displayName,
                                             style: const TextStyle(
                                               color: Colors.white70,
                                               fontSize: 12.5,
@@ -856,7 +1023,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                         ],
                                       ),
                                     ),
-                                    // Ikon tempat sampah di sebelah teks komentar hanya jika komentar dibuat oleh currentUser
+
+                                    // Hapus komentar milik sendiri.
                                     if (isMyComment && commentId.isNotEmpty)
                                       IconButton(
                                         icon: const Icon(
@@ -881,15 +1049,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
                             ),
                     ),
 
-                    // Input Komentar di bagian bawah
+                    // Input komentar.
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 10,
                       ),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF191413),
-                        border: Border(top: BorderSide(color: _border)),
+                      decoration: BoxDecoration(
+                        color: _background,
+                        border: const Border(top: BorderSide(color: _border)),
                       ),
                       child: Row(
                         children: [
@@ -911,10 +1079,18 @@ class _CommunityScreenState extends State<CommunityScreen> {
                                   vertical: 10,
                                 ),
                                 filled: true,
-                                fillColor: const Color(0xFF26201E),
+                                fillColor: _surface,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(20),
-                                  borderSide: BorderSide.none,
+                                  borderSide: const BorderSide(color: _border),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  borderSide: const BorderSide(color: _border),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  borderSide: const BorderSide(color: _primary),
                                 ),
                               ),
                             ),
@@ -927,6 +1103,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                             ),
                             onPressed: () {
                               final text = commentController.text.trim();
+
                               if (text.isNotEmpty) {
                                 provider.addComment(postId, text);
                                 commentController.clear();
@@ -943,6 +1120,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
           },
         );
       },
-    );
+    ).whenComplete(() {
+      commentController.dispose();
+    });
   }
 }
