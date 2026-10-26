@@ -26,24 +26,51 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _biometricEnabled = false;
   bool _biometricAvailable = false;
+  bool _autoBiometricAttempted = false;
 
   @override
   void initState() {
     super.initState();
-    _checkBiometricStatus();
+    _initializeLoginScreen();
+  }
+
+  /// Periksa status biometrik, lalu tampilkan autentikasi otomatis
+  /// jika biometrik aktif dan tersedia pada perangkat.
+  Future<void> _initializeLoginScreen() async {
+    await _checkBiometricStatus();
+
+    if (!mounted ||
+        !_biometricEnabled ||
+        !_biometricAvailable ||
+        _autoBiometricAttempted) {
+      return;
+    }
+
+    // Beri waktu agar halaman Login selesai ditampilkan.
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+
+    if (!mounted ||
+        !_biometricEnabled ||
+        !_biometricAvailable ||
+        _autoBiometricAttempted) {
+      return;
+    }
+
+    _autoBiometricAttempted = true;
+    await _loginWithBiometrics();
   }
 
   Future<void> _checkBiometricStatus() async {
     try {
       final enabled = await SecureStorageService.isBiometricEnabled();
       final available = await _biometricService.isAvailable();
-      final token = await _repository.getSavedToken();
 
       if (!mounted) return;
 
       setState(() {
-        _biometricEnabled =
-            enabled && available && token != null && token.isNotEmpty;
+        // Status biometrik tidak bergantung pada keberadaan token.
+        // Token diperiksa setelah autentikasi biometrik berhasil.
+        _biometricEnabled = enabled && available;
         _biometricAvailable = available;
       });
     } catch (error) {
@@ -84,6 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  /// Login manual tetap menggunakan alur Sprint 5 yang sudah ada.
   Future<void> _login() async {
     if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
@@ -133,6 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// Autentikasi biometrik otomatis maupun melalui tombol.
   Future<void> _loginWithBiometrics() async {
     if (_loading) return;
 
@@ -142,23 +171,12 @@ class _LoginScreenState extends State<LoginScreen> {
       final enabled = await SecureStorageService.isBiometricEnabled();
 
       if (!enabled) {
+        if (mounted) {
+          setState(() => _biometricEnabled = false);
+        }
+
         _showMessage(
           'Login biometrik belum aktif. Silakan login '
-          'dengan username/email dan password.',
-        );
-        return;
-      }
-
-      final token = await _repository.getSavedToken();
-
-      if (token == null || token.isEmpty) {
-        await SecureStorageService.saveBiometricEnabled(false);
-
-        if (!mounted) return;
-
-        setState(() => _biometricEnabled = false);
-        _showMessage(
-          'Sesi tidak ditemukan. Silakan login '
           'dengan username/email dan password.',
         );
         return;
@@ -167,6 +185,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final available = await _biometricService.isAvailable();
 
       if (!available) {
+        if (mounted) {
+          setState(() {
+            _biometricAvailable = false;
+            _biometricEnabled = false;
+          });
+        }
+
         _showMessage(
           'Biometrik tidak tersedia. Periksa pengaturan '
           'keamanan perangkat.',
@@ -174,6 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Minta autentikasi biometrik terlebih dahulu.
       final authenticated = await _biometricService.authenticate();
 
       if (!authenticated) {
@@ -181,17 +207,24 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Biometrik berhasil, sekarang periksa sesi Supabase.
+      final token = await _repository.getSavedToken();
+
+      if (token == null || token.isEmpty) {
+        _showMessage(
+          'Autentikasi biometrik berhasil, tetapi sesi tidak ditemukan. '
+          'Silakan login dengan username/email dan password.',
+        );
+        return;
+      }
+
       final user = await _repository.validateSession(token);
 
       if (user == null) {
-        if (!mounted) return;
-
         _showMessage(
-          'Sesi tidak valid atau telah kedaluwarsa. '
+          'Sesi Supabase tidak valid atau telah kedaluwarsa. '
           'Silakan login kembali dengan username/email dan password.',
         );
-
-        await _checkBiometricStatus();
         return;
       }
 
@@ -210,6 +243,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _logout() async {
     try {
+      // Logout manual tetap menonaktifkan fitur biometrik,
+      // sesuai perilaku yang sudah ada pada proyek.
       await SecureStorageService.saveBiometricEnabled(false);
       await _repository.logout();
 
@@ -372,7 +407,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             );
                           },
-
                     child: const Text('Belum punya akun? Daftar sekarang'),
                   ),
                 ],
