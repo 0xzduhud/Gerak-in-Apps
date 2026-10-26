@@ -26,6 +26,8 @@ class ActivityMetrics {
 
 /// Hasil satu sesi aktivitas. Dipakai untuk penyimpanan (PBI-8.6)
 /// dan kartu Daily Activity (PBI-8.7).
+/// Hasil satu sesi aktivitas. Dipakai untuk penyimpanan (PBI-8.6),
+/// kartu Daily Activity (PBI-8.7), dan achievement.
 class ActivitySummary {
   const ActivitySummary({
     required this.startedAt,
@@ -34,6 +36,8 @@ class ActivitySummary {
     required this.distanceMeters,
     required this.calories,
     this.sportId,
+    this.reps = 0,
+    this.motionType,
   });
 
   final DateTime startedAt;
@@ -43,6 +47,12 @@ class ActivitySummary {
   final double calories;
   final String? sportId;
 
+  /// Jumlah repetisi dari Mode Gerakan. 0 untuk sesi langkah biasa.
+  final int reps;
+
+  /// Jenis gerakan Mode Gerakan: 'squat', 'pushUp', atau 'jump'. null = sesi biasa.
+  final String? motionType;
+
   Map<String, dynamic> toJson() => {
         'started_at': startedAt.toIso8601String(),
         'duration_seconds': durationSeconds,
@@ -50,6 +60,8 @@ class ActivitySummary {
         'distance_meters': distanceMeters,
         'calories': calories,
         'sport_id': sportId,
+        'reps': reps,
+        'motion_type': motionType,
       };
 
   factory ActivitySummary.fromJson(Map<String, dynamic> json) =>
@@ -60,5 +72,8 @@ class ActivitySummary {
         distanceMeters: (json['distance_meters'] as num).toDouble(),
         calories: (json['calories'] as num).toDouble(),
         sportId: json['sport_id'] as String?,
+        // Data lama tidak punya kolom ini -> 0 / null.
+        reps: (json['reps'] as num?)?.toInt() ?? 0,
+        motionType: json['motion_type'] as String?,
       );
 }

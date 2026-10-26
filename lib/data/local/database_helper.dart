@@ -1,6 +1,6 @@
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
-
+// [PBI-9.x]  Versi 4: kolom `reps` dan `motion_type` di tabel `activities`.
 // ============================================================================
 // [PBI-8.6] DatabaseHelper — database lokal SQLite
 // [PBI-10.1] Versi 2: tabel `targets`.
@@ -14,7 +14,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static const String _dbName = 'gerakin.db';
-  static const int _dbVersion = 3;
+  static const int _dbVersion = 4;
   static const String tableActivities = 'activities';
   static const String tableTargets = 'targets';
   static const String tableSchedules = 'schedules';
@@ -50,6 +50,9 @@ class DatabaseHelper {
         distance_meters REAL NOT NULL,
         calories REAL NOT NULL,
         sport_id TEXT,
+        reps INTEGER NOT NULL DEFAULT 0,
+        motion_type TEXT,
+        synced INTEGER NOT NULL DEFAULT 0
         synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
@@ -67,6 +70,15 @@ class DatabaseHelper {
     }
     if (oldVersion < 3) {
       await _createSchedules(db);
+    }
+        if (oldVersion < 4) {
+      await db.execute(
+        'ALTER TABLE $tableActivities '
+        'ADD COLUMN reps INTEGER NOT NULL DEFAULT 0',
+      );
+      await db.execute(
+        'ALTER TABLE $tableActivities ADD COLUMN motion_type TEXT',
+      );
     }
   }
 

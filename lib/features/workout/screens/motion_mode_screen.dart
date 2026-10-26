@@ -11,6 +11,8 @@ import '../../../data/models/sport_model.dart';
 import '../services/motion_detector.dart';
 import '../services/step_detector.dart' show AccelSample;
 import 'workout_session_screen.dart' show AccelerometerService;
+import '../../../data/models/activity_model.dart';
+import '../../../data/repositories/activity_repository.dart';
 
 // [PBI-9.1] GyroscopeService — pembungkus sensors_plus untuk gyroscope (rad/s).
 class GyroscopeService {
@@ -137,6 +139,21 @@ class MotionSessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+    /// Ringkasan untuk disimpan ke riwayat. null jika sesi belum selesai
+  /// atau tidak ada repetisi yang terhitung.
+  ActivitySummary? toSummary() {
+    if (_state != MotionSessionState.finished || reps <= 0) return null;
+    return ActivitySummary(
+      startedAt: _startedAt ?? _now(),
+      durationSeconds: _finalElapsed.inSeconds,
+      steps: 0,
+      distanceMeters: 0,
+      calories: 0,
+      reps: reps,
+      motionType: _type.name,
+    );
+  }
+
   void reset() {
     _stopSensors();
     _detector.reset();
@@ -166,6 +183,29 @@ class MotionSessionProvider extends ChangeNotifier {
 String _fmt(Duration d) {
   String two(int n) => n.toString().padLeft(2, '0');
   return '${two(d.inMinutes)}:${two(d.inSeconds.remainder(60))}';
+}
+
+// [PBI-9.x] Akhiri sesi gerakan lalu simpan jika ada repetisi.
+Future<void> _finishAndSave(
+  BuildContext context,
+  MotionSessionProvider session,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  session.finish();
+  final summary = session.toSummary();
+  if (summary == null) return; // 0 repetisi: tidak disimpan
+  try {
+    await ActivityRepository().save(summary);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text('${summary.reps} repetisi tersimpan.')),
+      );
+  } catch (e) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text('Gagal menyimpan hasil: $e')));
+  }
 }
 
 String _placementHint(MotionType type) => switch (type) {
@@ -295,8 +335,7 @@ class _MotionView extends StatelessWidget {
             if (state == MotionSessionState.finished) ...[
               const SizedBox(height: 10),
               const _HintCard(
-                'Hasil mode ini belum disimpan ke riwayat '
-                '(menyusul bersama Progress).',
+                'Hasil disimpan ke riwayat jika ada repetisi yang terhitung.',
               ),
             ],
 
@@ -354,7 +393,7 @@ class _Controls extends StatelessWidget {
         );
       case MotionSessionState.running:
         return ElevatedButton.icon(
-          onPressed: session.finish,
+          onPressed: () => _finishAndSave(context, session),
           icon: const Icon(Icons.stop_rounded),
           label: const Text('Selesai'),
         );
