@@ -6,6 +6,7 @@ import '../../core/services/secure_storage_service.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../home/home_screen.dart';
 import 'register_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,7 +17,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
   final _repository = AuthRepository();
   final _biometricService = BiometricService();
@@ -59,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -90,9 +91,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
 
     try {
-      // Login utama melalui Supabase Auth.
       final result = await _repository.login(
-        email: _emailController.text.trim(),
+        identifier: _identifierController.text.trim(),
         password: _passwordController.text,
       );
 
@@ -103,7 +103,8 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Respons login tidak lengkap.');
       }
 
-      // Tes endpoint activities dengan token dari login.
+      // Pemeriksaan diagnostik lama tetap dipertahankan.
+      // Kegagalan endpoint activities tidak membatalkan login.
       try {
         final response = await Supabase.instance.client.functions.invoke(
           'activities',
@@ -120,7 +121,6 @@ class _LoginScreenState extends State<LoginScreen> {
         debugPrint('ACTIVITIES ERROR: $error');
       }
 
-      // Tetap lanjut ke Home meskipun tes activities gagal.
       await _repository.saveSession(token);
 
       if (!mounted) return;
@@ -144,7 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!enabled) {
         _showMessage(
           'Login biometrik belum aktif. Silakan login '
-          'dengan email dan password.',
+          'dengan username/email dan password.',
         );
         return;
       }
@@ -159,7 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _biometricEnabled = false);
         _showMessage(
           'Sesi tidak ditemukan. Silakan login '
-          'dengan email dan password.',
+          'dengan username/email dan password.',
         );
         return;
       }
@@ -188,8 +188,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
         _showMessage(
           'Sesi tidak valid atau telah kedaluwarsa. '
-          'Silakan login kembali dengan email dan password.',
+          'Silakan login kembali dengan username/email dan password.',
         );
+
         await _checkBiometricStatus();
         return;
       }
@@ -267,21 +268,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 20),
                   TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
+                    controller: _identifierController,
+                    keyboardType: TextInputType.text,
+                    autocorrect: false,
                     decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.email_outlined),
+                      labelText: 'Username atau Email',
+                      hintText: 'Masukkan username atau email',
+                      prefixIcon: Icon(Icons.person_outline),
                       border: OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'Email wajib diisi.';
+                        return 'Username atau email wajib diisi.';
                       }
 
-                      if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-                          .hasMatch(value.trim())) {
-                        return 'Format email tidak valid.';
+                      if (value.trim().contains(' ')) {
+                        return 'Username atau email tidak boleh mengandung spasi.';
                       }
 
                       return null;
@@ -334,6 +336,19 @@ class _LoginScreenState extends State<LoginScreen> {
                           )
                         : const Text('Masuk'),
                   ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ForgotPasswordScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text('Lupa Password?'),
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   if (_biometricEnabled && _biometricAvailable)
                     OutlinedButton.icon(
@@ -357,6 +372,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             );
                           },
+
                     child: const Text('Belum punya akun? Daftar sekarang'),
                   ),
                 ],

@@ -22,8 +22,6 @@ class SportRepository {
 
   static List<Sport> parse(String raw) {
     final list = jsonDecode(raw) as List<dynamic>;
-    return list
-        .map((e) => Sport.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return list.map((e) => Sport.fromJson(e as Map<String, dynamic>)).toList();
   }
 }

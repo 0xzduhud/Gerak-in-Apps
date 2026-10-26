@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import 'package:provider/provider.dart';
 
 import 'core/constants.dart';
@@ -13,6 +12,9 @@ import 'features/community/community_provider.dart';
 import 'features/games/game_provider.dart';
 import 'features/home/home_screen.dart';
 import 'features/premium/subscription_provider.dart';
+
+// Navigator utama agar halaman dapat dibuka dari event autentikasi.
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 class GerakInApp extends StatelessWidget {
   const GerakInApp({super.key});
@@ -26,6 +28,7 @@ class GerakInApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
       ],
       child: MaterialApp(
+        navigatorKey: rootNavigatorKey,
         title: AppConstants.appName,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark,
@@ -52,7 +55,7 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     _checkSession();
-  } 
+  }
 
   Future<void> _checkSession() async {
     if (_checkingSession) return;
@@ -63,7 +66,6 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     try {
-      // Ambil sesi yang dikelola langsung oleh Supabase Auth.
       final session = Supabase.instance.client.auth.currentSession;
 
       if (session == null || session.accessToken.isEmpty) {
@@ -71,14 +73,11 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      // Ambil profil yang terhubung dengan akun Supabase Auth.
       final user = await _repository.validateSession(session.accessToken);
 
       if (!mounted) return;
 
       if (user == null) {
-        // Sesi ada, tetapi profil belum ditemukan atau tidak dapat dibaca.
-        // Jangan menampilkan Home tanpa data profil yang valid.
         _goToLogin();
         return;
       }

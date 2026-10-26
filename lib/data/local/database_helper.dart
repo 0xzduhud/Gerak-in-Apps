@@ -1,20 +1,16 @@
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
-// ============================================================================
-// [PBI-8.6] DatabaseHelper — database lokal SQLite
-// Sementara hanya tabel `activities`. Tabel target/riwayat/jadwal menyusul
-// (Sprint 4, 10, 12) dengan menaikkan _dbVersion dan mengisi onUpgrade.
-// Catatan: sqflite tidak berjalan di Flutter Web; di web dipakai
-// PrefsActivityStore (lihat activity_repository.dart).
-// ============================================================================
+// [PBI-8.6] Database lokal SQLite.
+// Versi 2 menambahkan server_id untuk sinkronisasi aktivitas yang aman
+// terhadap percobaan ulang. Data pada versi 1 tetap dipertahankan.
 class DatabaseHelper {
   DatabaseHelper._();
 
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static const String _dbName = 'gerakin.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
   static const String tableActivities = 'activities';
 
   Future<Database>? _opening;
@@ -23,14 +19,20 @@ class DatabaseHelper {
     try {
       return await (_opening ??= _open());
     } catch (_) {
-      _opening = null; // izinkan percobaan ulang jika gagal membuka
+      _opening = null;
       rethrow;
     }
   }
 
   Future<Database> _open() async {
     final path = p.join(await getDatabasesPath(), _dbName);
-    return openDatabase(path, version: _dbVersion, onCreate: _onCreate);
+
+    return openDatabase(
+      path,
+      version: _dbVersion,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -43,13 +45,33 @@ class DatabaseHelper {
         distance_meters REAL NOT NULL,
         calories REAL NOT NULL,
         sport_id TEXT,
+        server_id TEXT,
         synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
+
     await db.execute(
       'CREATE INDEX idx_activities_started_at '
       'ON $tableActivities (started_at)',
     );
+
+    await db.execute(
+      'CREATE INDEX idx_activities_sync '
+      'ON $tableActivities (synced)',
+    );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute(
+        'ALTER TABLE $tableActivities ADD COLUMN server_id TEXT',
+      );
+
+      await db.execute(
+        'CREATE INDEX idx_activities_sync '
+        'ON $tableActivities (synced)',
+      );
+    }
   }
 }
-// ===================== AKHIR [PBI-8.6] DatabaseHelper =======================
+// ===================== AKHIR DatabaseHelper =====================
