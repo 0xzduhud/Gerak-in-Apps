@@ -276,28 +276,54 @@ class AuthRepository {
     return message;
   }
 
-  /// Memvalidasi sesi Supabase aktif dan mengambil profil pengguna.
+  /// Memvalidasi sesi sebelum pengguna diizinkan masuk ke Home.
   Future<Map<String, dynamic>?> validateSession(String token) async {
     try {
       final session = _supabase.auth.currentSession;
-      final user = _supabase.auth.currentUser;
 
-      if (session == null || user == null || session.accessToken != token) {
+      if (session == null || token.isEmpty) {
+        debugPrint('[SESSION] Sesi tidak tersedia.');
         return null;
       }
 
-      final response = await _supabase
+      // Jangan memperpanjang sesi secara manual jika access token habis.
+      if (session.isExpired) {
+        debugPrint('[SESSION] Access token kedaluwarsa. Login diperlukan.');
+        return null;
+      }
+
+      final response = await _supabase.auth.getUser(session.accessToken);
+
+      final verifiedUser = response.user;
+
+      if (verifiedUser == null) {
+        debugPrint('[SESSION] Pengguna tidak valid.');
+        return null;
+      }
+
+      final profile = await _supabase
           .from('users')
           .select()
-          .eq('auth_user_id', user.id)
+          .eq('auth_user_id', verifiedUser.id)
           .maybeSingle();
 
-      if (response == null) return null;
+      if (profile == null) {
+        debugPrint('[SESSION] Profil tidak ditemukan.');
+        return null;
+      }
 
-      return Map<String, dynamic>.from(response);
-    } on AuthException {
+      debugPrint('[SESSION] Sesi valid.');
+
+      return Map<String, dynamic>.from(profile);
+    } on AuthException catch (error) {
+      debugPrint('[SESSION] Autentikasi gagal: ${error.message}');
       return null;
-    } on PostgrestException {
+    } on PostgrestException catch (error) {
+      debugPrint('[SESSION] Profil gagal diambil: ${error.message}');
+      return null;
+    } catch (error, stackTrace) {
+      debugPrint('[SESSION] Validasi sesi gagal: $error');
+      debugPrintStack(stackTrace: stackTrace);
       return null;
     }
   }
