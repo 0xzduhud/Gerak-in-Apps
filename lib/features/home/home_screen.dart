@@ -1,9 +1,12 @@
+// TES SIMPAN FILE
 import 'package:flutter/material.dart';
 
 import '../../core/services/ai_recommendation_service.dart';
 import '../../core/utils/formatters.dart';
+import '../../data/models/target_model.dart';
 import '../../data/repositories/activity_repository.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../../data/repositories/target_repository.dart';
 import '../achievement/achievement_screen.dart';
 import '../auth/login_screen.dart';
 import '../chatbot/chat_screen.dart';
@@ -37,11 +40,15 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   // PBI-8.7: total aktivitas hari ini untuk card Daily Activity.
+  // PBI-10.8: target harian untuk indikator progres.
   final ActivityRepository _activities = ActivityRepository();
-  DailyTotals _today = DailyTotals.empty;
+  final TargetRepository _targets = TargetRepository();
 
-  // Rekomendasi AI (Sprint 14). Future dibuat sekali supaya tidak
-  // memanggil ulang setiap kali Home dibangun ulang.
+  DailyTotals _today = DailyTotals.empty;
+  TargetProgress? _progress;
+
+  // Sprint 14: Future dibuat sekali agar tidak meminta rekomendasi AI
+  // berulang kali setiap Home dibangun ulang.
   Future<Map<String, dynamic>?>? _recommendationFuture;
 
   @override
@@ -60,16 +67,24 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadToday() async {
     try {
       final totals = await _activities.totalsForDay(DateTime.now());
+
+      // Kegagalan membaca target tidak boleh menyembunyikan aktivitas.
+      TargetProgress? progress;
+      try {
+        progress = TargetProgress.from(await _targets.load(), totals);
+      } catch (error) {
+        debugPrint('Gagal memuat target harian: $error');
+      }
+
       if (!mounted) return;
-      // Log sementara untuk verifikasi di Edge/HP; boleh dihapus.
-      debugPrint(
-        'Total hari ini: langkah=${totals.steps} '
-        'detik=${totals.durationSeconds} kkal=${totals.calories.toStringAsFixed(1)}',
-      );
-      setState(() => _today = totals);
-    } catch (e) {
-      // Gagal membaca data tidak boleh merusak Home; tetap tampil nol.
-      debugPrint('Gagal memuat aktivitas hari ini: $e');
+
+      setState(() {
+        _today = totals;
+        _progress = progress;
+      });
+    } catch (error) {
+      // Kegagalan membaca data tidak boleh merusak Home.
+      debugPrint('Gagal memuat aktivitas hari ini: $error');
     }
   }
 
@@ -88,8 +103,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Pengguna';
   }
 
-  void _open(Widget page) {
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+  Future<void> _open(Widget page) async {
+    await Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => page));
+
+    // Data mungkin berubah saat pengguna berada di halaman lain.
+    if (mounted) {
+      await _loadToday();
+    }
   }
 
   Future<void> _handleLogout() async {
@@ -145,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final isHomeTab = _selectedIndex == 0;
 
     return Scaffold(
-      // Home dan Community punya header sendiri, jadi AppBar bawaan disembunyikan
+      // Home dan Community memiliki header sendiri.
       appBar: (isHomeTab || _selectedIndex == 3)
           ? null
           : AppBar(
@@ -157,8 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: IndexedStack(index: _selectedIndex, children: pages),
       ),
-      // PBI-6.7: tombol melayang chatbot di kanan bawah (khusus Home).
-      // Memakai ChatScreen.route() karena layar chat butuh ChatProvider.
+      // PBI-6.7: tombol chatbot hanya muncul pada tab Home.
       floatingActionButton: isHomeTab
           ? FloatingActionButton(
               tooltip: 'Fitness Assistant',
@@ -172,8 +192,10 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _selectedIndex = index;
           });
-          // Kembali ke Home: muat ulang total (sesi baru mungkin baru selesai).
-          if (index == 0) _loadToday();
+
+          if (index == 0) {
+            _loadToday();
+          }
         },
         destinations: const [
           NavigationDestination(
@@ -206,12 +228,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // PBI-6.1: susunan halaman Home
+  // PBI-6.1: susunan halaman Home.
   Widget _buildHomePage() {
     final greeting = greetingByHour(DateTime.now().hour);
 
     return ListView(
-      // padding bawah besar supaya card terakhir tidak tertutup tombol chatbot
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
       children: [
         HomeHeader(
@@ -224,10 +245,13 @@ class _HomeScreenState extends State<HomeScreen> {
           steps: _today.steps,
           calories: _today.calories.round(),
           distanceKm: _today.distanceMeters / 1000,
+          progress: _progress,
         ),
         const SizedBox(height: 16),
-        // Sprint 14: rekomendasi AI dengan data Gemini
+
+        // Sprint 14: rekomendasi AI dari service Gemini.
         _buildAiRecommendationCard(),
+
         const SizedBox(height: 24),
         RoundMenuRow(
           items: [
@@ -259,14 +283,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Sprint 14: kartu rekomendasi AI (data dari Gemini lewat service).
+  // Sprint 14: kartu rekomendasi AI.
   Widget _buildAiRecommendationCard() {
     final future = _recommendationFuture;
 
     if (future == null) {
       return const Card(
         child: Padding(
-          padding: EdgeInsets.all(16.0),
+          padding: EdgeInsets.all(16),
           child: Text('ID Pengguna tidak ditemukan untuk rekomendasi AI.'),
         ),
       );
@@ -278,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Card(
             child: Padding(
-              padding: EdgeInsets.all(20.0),
+              padding: EdgeInsets.all(20),
               child: Center(child: CircularProgressIndicator()),
             ),
           );
@@ -304,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -330,7 +354,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   alignment: Alignment.centerRight,
                   child: FilledButton(
                     onPressed: () {
-                      // Pindah ke tab Workout (index 2) sesuai flow aplikasi
                       setState(() {
                         _selectedIndex = 2;
                       });
