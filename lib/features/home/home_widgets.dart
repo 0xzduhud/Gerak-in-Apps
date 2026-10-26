@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme.dart';
+import '../community/community_provider.dart';
 
 // PBI-6.3: header sapaan (kiri) + ikon notifikasi (kanan)
 class HomeHeader extends StatelessWidget {
@@ -47,9 +49,7 @@ class HomeHeader extends StatelessWidget {
         const SizedBox(width: 12),
         Material(
           color: AppColors.surface,
-          shape: const CircleBorder(
-            side: BorderSide(color: AppColors.outline),
-          ),
+          shape: const CircleBorder(side: BorderSide(color: AppColors.outline)),
           child: IconButton(
             tooltip: 'Notifikasi',
             onPressed: onNotificationTap,
@@ -61,7 +61,7 @@ class HomeHeader extends StatelessWidget {
   }
 }
 
-// PBI-6.4: kerangka card Daily Activity
+// PBI-6.4: card Daily Activity
 class DailyActivityCard extends StatelessWidget {
   const DailyActivityCard({
     super.key,
@@ -157,7 +157,7 @@ class _ActivityStat extends StatelessWidget {
   }
 }
 
-// PBI-6.5: kerangka card rekomendasi AI
+// PBI-6.5: card rekomendasi AI
 class AiRecommendationCard extends StatelessWidget {
   const AiRecommendationCard({super.key});
 
@@ -237,8 +237,7 @@ class RoundMenuRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final item in items)
-          Expanded(child: _RoundMenuButton(item: item)),
+        for (final item in items) Expanded(child: _RoundMenuButton(item: item)),
       ],
     );
   }
@@ -287,11 +286,33 @@ class _RoundMenuButton extends StatelessWidget {
   }
 }
 
-// PBI-6.8: kerangka card Community feed
-class CommunityFeedCard extends StatelessWidget {
+// PBI-6.8: menampilkan maksimal 3 postingan terbaru
+class CommunityFeedCard extends StatefulWidget {
   const CommunityFeedCard({super.key, required this.onSeeAll});
 
   final VoidCallback onSeeAll;
+
+  @override
+  State<CommunityFeedCard> createState() => _CommunityFeedCardState();
+}
+
+class _CommunityFeedCardState extends State<CommunityFeedCard> {
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final provider = Provider.of<CommunityProvider>(context, listen: false);
+
+      if (provider.posts.isEmpty && !provider.isLoading) {
+        provider.fetchPosts().catchError((Object error) {
+          debugPrint('Gagal memuat postingan komunitas di Home: $error');
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -318,15 +339,52 @@ class CommunityFeedCard extends StatelessWidget {
                   ),
                 ),
               ),
-              TextButton(onPressed: onSeeAll, child: const Text('Lihat semua')),
+              TextButton(
+                onPressed: widget.onSeeAll,
+                child: const Text('Lihat semua'),
+              ),
             ],
           ),
-          const _FeedPlaceholder(),
-          const _FeedPlaceholder(),
-          const SizedBox(height: 8),
-          const Text(
-            'Postingan terbaru dari komunitas akan tampil di sini.',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          Consumer<CommunityProvider>(
+            builder: (context, provider, child) {
+              if (provider.isLoading && provider.posts.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              if (provider.posts.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Text(
+                      'Belum ada postingan komunitas.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              final recentPosts = provider.posts.take(3).toList();
+
+              return Column(
+                children: [
+                  for (int i = 0; i < recentPosts.length; i++) ...[
+                    _CommunityPostPreview(post: recentPosts[i]),
+                    if (i < recentPosts.length - 1)
+                      Divider(
+                        height: 20,
+                        color: AppColors.outline.withValues(alpha: 0.6),
+                      ),
+                  ],
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -334,56 +392,114 @@ class CommunityFeedCard extends StatelessWidget {
   }
 }
 
-class _FeedPlaceholder extends StatelessWidget {
-  const _FeedPlaceholder();
+class _CommunityPostPreview extends StatelessWidget {
+  const _CommunityPostPreview({required this.post});
+
+  final Map<String, dynamic> post;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
+    final fullName = post['full_name']?.toString().trim() ?? '';
+    final username = post['username']?.toString().trim() ?? '';
+    final displayName = fullName.isNotEmpty
+        ? fullName
+        : username.isNotEmpty
+        ? username
+        : 'Pengguna';
+
+    final avatarUrl = post['avatar_url']?.toString();
+    final content = post['content']?.toString().trim() ?? '';
+    final imageUrl = post['image_url']?.toString().trim() ?? '';
+    final time = post['time']?.toString() ?? 'Baru saja';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 20,
             backgroundColor: AppColors.surfaceHigh,
-            child: Icon(
-              Icons.person_outline_rounded,
-              color: AppColors.textSecondary,
-            ),
+            backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
+                ? NetworkImage(avatarUrl)
+                : null,
+            child: avatarUrl == null || avatarUrl.isEmpty
+                ? const Icon(
+                    Icons.person_outline_rounded,
+                    color: AppColors.textSecondary,
+                  )
+                : null,
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Bar(widthFactor: 0.45),
-                SizedBox(height: 8),
-                _Bar(widthFactor: 0.9),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      time,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                if (content.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    content,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+                if (imageUrl.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(
+                      imageUrl,
+                      height: 120,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          height: 64,
+                          width: double.infinity,
+                          color: AppColors.surfaceHigh,
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.broken_image_outlined,
+                            color: AppColors.textSecondary,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _Bar extends StatelessWidget {
-  const _Bar({required this.widthFactor});
-
-  final double widthFactor;
-
-  @override
-  Widget build(BuildContext context) {
-    return FractionallySizedBox(
-      alignment: Alignment.centerLeft,
-      widthFactor: widthFactor,
-      child: Container(
-        height: 10,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceHigh,
-          borderRadius: BorderRadius.circular(6),
-        ),
       ),
     );
   }

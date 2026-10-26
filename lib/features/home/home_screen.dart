@@ -36,12 +36,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  // PBI-8.7: total aktivitas hari ini untuk card Daily Activity.
+  // Total aktivitas hari ini.
   final ActivityRepository _activities = ActivityRepository();
   DailyTotals _today = DailyTotals.empty;
 
-  // Rekomendasi AI (Sprint 14). Future dibuat sekali supaya tidak
-  // memanggil ulang setiap kali Home dibangun ulang.
+  // Future rekomendasi dibuat sekali.
   Future<Map<String, dynamic>?>? _recommendationFuture;
 
   @override
@@ -60,15 +59,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadToday() async {
     try {
       final totals = await _activities.totalsForDay(DateTime.now());
+
       if (!mounted) return;
-      // Log sementara untuk verifikasi di Edge/HP; boleh dihapus.
+
       debugPrint(
         'Total hari ini: langkah=${totals.steps} '
-        'detik=${totals.durationSeconds} kkal=${totals.calories.toStringAsFixed(1)}',
+        'detik=${totals.durationSeconds} '
+        'kkal=${totals.calories.toStringAsFixed(1)}',
       );
+
       setState(() => _today = totals);
     } catch (e) {
-      // Gagal membaca data tidak boleh merusak Home; tetap tampil nol.
       debugPrint('Gagal memuat aktivitas hari ini: $e');
     }
   }
@@ -145,35 +146,39 @@ class _HomeScreenState extends State<HomeScreen> {
     final isHomeTab = _selectedIndex == 0;
 
     return Scaffold(
-      // Home dan Community punya header sendiri, jadi AppBar bawaan disembunyikan
       appBar: (isHomeTab || _selectedIndex == 3)
           ? null
           : AppBar(
-              title: const Text(
-                'Gerak-in',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              title: Text(
+                _selectedIndex == 4 ? 'Profile' : 'Gerak-in',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
       body: SafeArea(
         child: IndexedStack(index: _selectedIndex, children: pages),
       ),
-      // PBI-6.7: tombol melayang chatbot di kanan bawah (khusus Home).
-      // Memakai ChatScreen.route() karena layar chat butuh ChatProvider.
+
+      // Tombol chatbot hanya muncul di Home.
       floatingActionButton: isHomeTab
           ? FloatingActionButton(
               tooltip: 'Fitness Assistant',
-              onPressed: () => Navigator.of(context).push(ChatScreen.route()),
+              onPressed: () {
+                Navigator.of(context).push(ChatScreen.route());
+              },
               child: const Icon(Icons.smart_toy_rounded),
             )
           : null,
+
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
           });
-          // Kembali ke Home: muat ulang total (sesi baru mungkin baru selesai).
-          if (index == 0) _loadToday();
+
+          if (index == 0) {
+            _loadToday();
+          }
         },
         destinations: const [
           NavigationDestination(
@@ -206,29 +211,35 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // PBI-6.1: susunan halaman Home
+  // Susunan Home terbaru.
   Widget _buildHomePage() {
     final greeting = greetingByHour(DateTime.now().hour);
 
     return ListView(
-      // padding bawah besar supaya card terakhir tidak tertutup tombol chatbot
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
       children: [
         HomeHeader(
           greeting: greeting,
           name: firstNameOf(_displayName),
-          onNotificationTap: () => _open(const NotificationScreen()),
+          onNotificationTap: () {
+            _open(const NotificationScreen());
+          },
         ),
+
         const SizedBox(height: 20),
+
         DailyActivityCard(
           steps: _today.steps,
           calories: _today.calories.round(),
           distanceKm: _today.distanceMeters / 1000,
         ),
+
         const SizedBox(height: 16),
-        // Sprint 14: rekomendasi AI dengan data Gemini
+
         _buildAiRecommendationCard(),
+
         const SizedBox(height: 24),
+
         RoundMenuRow(
           items: [
             HomeMenuItem(
@@ -253,20 +264,32 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+
         const SizedBox(height: 24),
-        CommunityFeedCard(onSeeAll: () => setState(() => _selectedIndex = 3)),
+
+        // Komunitas: tampilkan maksimal 3 postingan terbaru.
+        // Tombol Lihat semua membuka tab Community.
+        CommunityFeedCard(
+          onSeeAll: () {
+            setState(() {
+              _selectedIndex = 3;
+            });
+          },
+        ),
+
+        const SizedBox(height: 16),
       ],
     );
   }
 
-  // Sprint 14: kartu rekomendasi AI (data dari Gemini lewat service).
+  // Rekomendasi AI dari service yang sudah ada.
   Widget _buildAiRecommendationCard() {
     final future = _recommendationFuture;
 
     if (future == null) {
       return const Card(
         child: Padding(
-          padding: EdgeInsets.all(16.0),
+          padding: EdgeInsets.all(16),
           child: Text('ID Pengguna tidak ditemukan untuk rekomendasi AI.'),
         ),
       );
@@ -278,7 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Card(
             child: Padding(
-              padding: EdgeInsets.all(20.0),
+              padding: EdgeInsets.all(20),
               child: Center(child: CircularProgressIndicator()),
             ),
           );
@@ -304,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -330,13 +353,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   alignment: Alignment.centerRight,
                   child: FilledButton(
                     onPressed: () {
-                      // Pindah ke tab Workout (index 2) sesuai flow aplikasi
                       setState(() {
                         _selectedIndex = 2;
                       });
                     },
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF16856B),
+                      backgroundColor: const Color(0xFFE86524),
                     ),
                     child: const Text('Mulai Workout'),
                   ),
