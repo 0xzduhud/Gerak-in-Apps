@@ -1,4 +1,3 @@
-// TES SIMPAN FILE
 import 'package:flutter/material.dart';
 
 import '../../core/services/ai_recommendation_service.dart';
@@ -39,16 +38,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  // PBI-8.7: total aktivitas hari ini untuk card Daily Activity.
-  // PBI-10.8: target harian untuk indikator progres.
+  // Total aktivitas hari ini dan progres target harian.
   final ActivityRepository _activities = ActivityRepository();
   final TargetRepository _targets = TargetRepository();
 
   DailyTotals _today = DailyTotals.empty;
   TargetProgress? _progress;
 
-  // Sprint 14: Future dibuat sekali agar tidak meminta rekomendasi AI
-  // berulang kali setiap Home dibangun ulang.
+  // Future rekomendasi dibuat sekali agar tidak meminta rekomendasi
+  // AI berulang kali setiap Home dibangun ulang.
   Future<Map<String, dynamic>?>? _recommendationFuture;
 
   @override
@@ -77,6 +75,12 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       if (!mounted) return;
+
+      debugPrint(
+        'Total hari ini: langkah=${totals.steps} '
+        'detik=${totals.durationSeconds} '
+        'kkal=${totals.calories.toStringAsFixed(1)}',
+      );
 
       setState(() {
         _today = totals;
@@ -170,22 +174,26 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: (isHomeTab || _selectedIndex == 3)
           ? null
           : AppBar(
-              title: const Text(
-                'Gerak-in',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              title: Text(
+                _selectedIndex == 4 ? 'Profile' : 'Gerak-in',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
       body: SafeArea(
         child: IndexedStack(index: _selectedIndex, children: pages),
       ),
-      // PBI-6.7: tombol chatbot hanya muncul pada tab Home.
+
+      // Tombol chatbot hanya muncul pada tab Home.
       floatingActionButton: isHomeTab
           ? FloatingActionButton(
               tooltip: 'Fitness Assistant',
-              onPressed: () => Navigator.of(context).push(ChatScreen.route()),
+              onPressed: () {
+                Navigator.of(context).push(ChatScreen.route());
+              },
               child: const Icon(Icons.smart_toy_rounded),
             )
           : null,
+
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
@@ -228,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // PBI-6.1: susunan halaman Home.
+  // Susunan halaman Home.
   Widget _buildHomePage() {
     final greeting = greetingByHour(DateTime.now().hour);
 
@@ -238,7 +246,9 @@ class _HomeScreenState extends State<HomeScreen> {
         HomeHeader(
           greeting: greeting,
           name: firstNameOf(_displayName),
-          onNotificationTap: () => _open(const NotificationScreen()),
+          onNotificationTap: () {
+            _open(const NotificationScreen());
+          },
         ),
         const SizedBox(height: 20),
         DailyActivityCard(
@@ -249,7 +259,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Sprint 14: rekomendasi AI dari service Gemini.
+        // Rekomendasi AI dari service yang sudah ada.
         _buildAiRecommendationCard(),
 
         const SizedBox(height: 24),
@@ -278,12 +288,22 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 24),
-        CommunityFeedCard(onSeeAll: () => setState(() => _selectedIndex = 3)),
+
+        // Komunitas: tampilkan maksimal 3 postingan terbaru.
+        // Tombol Lihat semua membuka tab Community.
+        CommunityFeedCard(
+          onSeeAll: () {
+            setState(() {
+              _selectedIndex = 3;
+            });
+          },
+        ),
+        const SizedBox(height: 16),
       ],
     );
   }
 
-  // Sprint 14: kartu rekomendasi AI.
+  // Kartu rekomendasi AI.
   Widget _buildAiRecommendationCard() {
     final future = _recommendationFuture;
 
@@ -359,7 +379,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       });
                     },
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF16856B),
+                      backgroundColor: const Color(0xFFE86524),
                     ),
                     child: const Text('Mulai Workout'),
                   ),

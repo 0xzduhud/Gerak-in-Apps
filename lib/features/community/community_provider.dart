@@ -55,8 +55,11 @@ class CommunityProvider extends ChangeNotifier {
     return posts.where((post) {
       final content = (post['content']?.toString() ?? '').toLowerCase();
       final username = (post['username']?.toString() ?? '').toLowerCase();
+      final fullName = (post['full_name']?.toString() ?? '').toLowerCase();
 
-      return content.contains(query) || username.contains(query);
+      return content.contains(query) ||
+          username.contains(query) ||
+          fullName.contains(query);
     }).toList();
   }
 
@@ -150,7 +153,9 @@ class CommunityProvider extends ChangeNotifier {
           .from('posts')
           .select(
             '*, '
-            'users!posts_user_id_fkey(username, photo_url, auth_user_id), '
+            'users!posts_user_id_fkey('
+            'full_name, username, photo_url, auth_user_id'
+            '), '
             'post_likes(user_id), '
             'post_comments(id, post_id, user_id, content, created_at)',
           )
@@ -182,7 +187,7 @@ class CommunityProvider extends ChangeNotifier {
       if (commentUserIds.isNotEmpty) {
         final userResponse = await _supabase
             .from('users')
-            .select('id, username, photo_url')
+            .select('id, full_name, username, photo_url')
             .inFilter('id', commentUserIds.toList());
 
         for (final item in userResponse as List) {
@@ -205,22 +210,29 @@ class CommunityProvider extends ChangeNotifier {
         final userRelation = map['users'];
 
         String username = 'Pengguna';
+        String fullName = '';
         String? avatarUrl;
         String? postAuthUserId;
 
         if (userRelation is Map) {
           final name = userRelation['username']?.toString();
+          final fullNameValue = userRelation['full_name']?.toString();
 
           if (name != null && name.trim().isNotEmpty) {
             username = name;
+          }
+
+          if (fullNameValue != null && fullNameValue.trim().isNotEmpty) {
+            fullName = fullNameValue.trim();
           }
 
           avatarUrl = userRelation['photo_url']?.toString();
           postAuthUserId = userRelation['auth_user_id']?.toString();
         }
 
+        // Pertahankan username untuk kompatibilitas UI lama.
+        // Nama lengkap disimpan terpisah untuk tampilan card.
         if (profileId != null && postUserId == profileId) {
-          username = currentUsername;
           avatarUrl ??= currentUserAvatar;
         }
 
@@ -240,6 +252,7 @@ class CommunityProvider extends ChangeNotifier {
             'id': comment['id']?.toString() ?? '',
             'user_id': commentUserId,
             'username': commentUsername,
+            'full_name': commentProfile?['full_name']?.toString() ?? '',
             'avatar_url': commentProfile?['photo_url']?.toString(),
             'comment': comment['content']?.toString() ?? '',
             'created_at': comment['created_at']?.toString(),
@@ -259,6 +272,7 @@ class CommunityProvider extends ChangeNotifier {
           'user_id': postUserId,
           'auth_user_id': postAuthUserId,
           'username': username,
+          'full_name': fullName,
           'avatar_url': avatarUrl,
           'content': map['content']?.toString() ?? '',
           'image_url': map['image_url']?.toString(),
@@ -475,6 +489,7 @@ class CommunityProvider extends ChangeNotifier {
         'id': inserted['id']?.toString() ?? '',
         'user_id': profileId,
         'username': currentUsername,
+        'full_name': '',
         'avatar_url': currentUserAvatar,
         'comment': inserted['content']?.toString() ?? trimmedComment,
         'created_at': inserted['created_at']?.toString(),
