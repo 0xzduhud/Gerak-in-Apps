@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
 import '../../data/models/place_model.dart';
 import 'place_style.dart';
+import 'cost_calculator_card.dart';
 
 // [PBI-11.6] Halaman detail tempat + tombol navigasi ke aplikasi peta.
 // [PBI-11.8] Kalkulator biaya akan ditambahkan di sini (hanya jika ada info biaya).
@@ -95,6 +96,16 @@ class PlaceDetailScreen extends StatelessWidget {
               value: '${place.lat.toStringAsFixed(5)}, '
                   '${place.lng.toStringAsFixed(5)}',
             ),
+
+            _InfoRow(
+              icon: Icons.my_location_rounded,
+              label: 'Koordinat',
+              value: '${place.lat.toStringAsFixed(5)}, '
+                  '${place.lng.toStringAsFixed(5)}',
+            ),
+            CostCalculatorCard(place: place),   // <-- baris baru [PBI-11.8]
+            const SizedBox(height: 16),
+
             const SizedBox(height: 16),
             FilledButton.icon(
               style: FilledButton.styleFrom(
