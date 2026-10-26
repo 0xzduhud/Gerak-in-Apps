@@ -22,12 +22,23 @@ class AiRecommendationService {
 
   final _supabase = Supabase.instance.client;
 
-  // Sudah dites: menjawab ~1-2 detik.
-  static const String _model = 'gemini-3.1-flash-lite';
+  // Model utama dan cadangan. Keduanya sudah dites menjawab ~1-2 detik.
+  static const List<String> _models = [
+    'gemini-3.1-flash-lite',
+    'gemini-flash-lite-latest',
+  ];
+
+  // Urutan percobaan (indeks ke _models): utama, cadangan, utama lagi.
+  static const List<int> _attemptOrder = [0, 1, 0];
+
+  // Jeda sebelum percobaan terakhir.
+  static const Duration _retryDelay = Duration(seconds: 2);
+
+  // Status yang biasanya sementara (server sibuk/kuota): layak dicoba lagi.
+  static const Set<int> _retryableStatus = {429, 500, 502, 503, 504};
 
   static const Duration _cacheDuration = Duration(minutes: 30);
   static const Duration _requestTimeout = Duration(seconds: 15);
-  static const int _maxAttempts = 2;
 
   final Map<String, _CacheEntry> _cache = {};
   final Map<String, Future<Map<String, dynamic>?>> _inFlight = {};
@@ -78,7 +89,8 @@ class AiRecommendationService {
           .select('id, name, body_part');
 
       // 3. Susun prompt
-      final prompt = '''
+      final prompt =
+          '''
 Kamu adalah asisten kebugaran AI.
 Riwayat aktivitas terakhir: ${jsonEncode(activities)}. (Jika kosong, anggap pengguna baru mulai dan butuh olahraga ringan/seluruh tubuh).
 Daftar olahraga: ${jsonEncode(sports)}.
@@ -96,10 +108,6 @@ Wajib kembalikan HANYA format JSON murni persis seperti ini:
         );
       }
 
-      // 5. Panggil Gemini, dengan retry kalau menggantung/gagal jaringan
-      final uri = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent',
-      );
       final body = jsonEncode({
         'contents': [
           {
@@ -111,15 +119,30 @@ Wajib kembalikan HANYA format JSON murni persis seperti ini:
         'generationConfig': {'responseMimeType': 'application/json'},
       });
 
+      // 5. Panggil Gemini. Server sibuk (503, dll.) dicoba lagi,
+      // berpindah ke model cadangan bila perlu.
       http.Response? response;
-      for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
+      String lastProblem = 'tidak diketahui';
+
+      for (var attempt = 0; attempt < _attemptOrder.length; attempt++) {
+        final model = _models[_attemptOrder[attempt]];
+
+        if (attempt == _attemptOrder.length - 1) {
+          await Future<void>.delayed(_retryDelay);
+        }
+
         debugPrint(
-          'AI: mengirim request ke Gemini ($_model), '
-          'percobaan $attempt/$_maxAttempts...',
+          'AI: mengirim request ke Gemini ($model), '
+          'percobaan ${attempt + 1}/${_attemptOrder.length}...',
+        );
+
+        final uri = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent',
         );
         final stopwatch = Stopwatch()..start();
+
         try {
-          response = await http
+          final result = await http
               .post(
                 uri,
                 headers: {
@@ -130,25 +153,42 @@ Wajib kembalikan HANYA format JSON murni persis seperti ini:
               )
               .timeout(_requestTimeout);
           stopwatch.stop();
+
           debugPrint(
             'AI: Gemini membalas dalam ${stopwatch.elapsedMilliseconds} ms '
-            '(HTTP ${response.statusCode})',
+            '(HTTP ${result.statusCode})',
           );
-          break;
+
+          if (result.statusCode == 200) {
+            response = result;
+            break;
+          }
+
+          // Sementara (sibuk/kuota) atau model sudah dihentikan (404):
+          // coba percobaan berikutnya.
+          if (_retryableStatus.contains(result.statusCode) ||
+              result.statusCode == 404) {
+            lastProblem = 'HTTP ${result.statusCode}: ${result.body}';
+            continue;
+          }
+
+          // Selain itu (400, 403, dst.) bukan masalah sementara.
+          throw Exception(
+            'Gemini menolak request (HTTP ${result.statusCode}): ${result.body}',
+          );
         } on TimeoutException {
-          debugPrint('AI: percobaan $attempt timeout.');
-          if (attempt == _maxAttempts) rethrow;
+          lastProblem = 'timeout';
+          debugPrint('AI: percobaan ${attempt + 1} timeout.');
         } on http.ClientException catch (e) {
-          debugPrint('AI: percobaan $attempt gagal jaringan: $e');
-          if (attempt == _maxAttempts) rethrow;
+          lastProblem = 'jaringan: $e';
+          debugPrint('AI: percobaan ${attempt + 1} gagal jaringan: $e');
         }
       }
 
-      if (response == null) return null;
-
-      if (response.statusCode != 200) {
+      if (response == null) {
         throw Exception(
-          'Gemini menolak request (HTTP ${response.statusCode}): ${response.body}',
+          'Gemini belum bisa dihubungi setelah ${_attemptOrder.length} '
+          'percobaan. Terakhir: $lastProblem',
         );
       }
 
@@ -159,8 +199,12 @@ Wajib kembalikan HANYA format JSON murni persis seperti ini:
         throw Exception('Respons Gemini kosong: ${response.body}');
       }
 
+      final parts = candidates[0]['content']?['parts'] as List?;
       String rawText =
-          candidates[0]['content']['parts'][0]['text'] as String? ?? '';
+          (parts != null && parts.isNotEmpty
+              ? parts[0]['text'] as String?
+              : null) ??
+          '';
 
       rawText = rawText.replaceAll(RegExp(r'```json\s*'), '');
       rawText = rawText.replaceAll(RegExp(r'```\s*'), '');
@@ -173,14 +217,6 @@ Wajib kembalikan HANYA format JSON murni persis seperti ini:
       // Simpan hanya hasil yang berhasil.
       _cache[userId] = _CacheEntry(result, DateTime.now());
       return result;
-    } on TimeoutException catch (e) {
-      debugPrint('=== ERROR AI REKOMENDASI (TIMEOUT) ===');
-      debugPrint(e.toString());
-      return null;
-    } on http.ClientException catch (e) {
-      debugPrint('=== ERROR AI REKOMENDASI (JARINGAN/CORS) ===');
-      debugPrint(e.toString());
-      return null;
     } catch (e) {
       debugPrint('=== ERROR AI REKOMENDASI ===');
       debugPrint(e.toString());
