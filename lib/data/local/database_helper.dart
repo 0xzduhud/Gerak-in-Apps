@@ -14,7 +14,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static const String _dbName = 'gerakin.db';
-  static const int _dbVersion = 4;
+  static const int _dbVersion = 5;
   static const String tableActivities = 'activities';
   static const String tableTargets = 'targets';
   static const String tableSchedules = 'schedules';
@@ -76,6 +76,12 @@ class DatabaseHelper {
         'ALTER TABLE $tableActivities '
         'ADD COLUMN reps INTEGER NOT NULL DEFAULT 0',
       );
+      if (oldVersion >= 2 && oldVersion < 5) {
+      await db.execute(
+        'ALTER TABLE $tableTargets '
+        'ADD COLUMN reps INTEGER NOT NULL DEFAULT 50',
+      );
+    }
       await db.execute(
         'ALTER TABLE $tableActivities ADD COLUMN motion_type TEXT',
       );
@@ -90,6 +96,8 @@ class DatabaseHelper {
         steps INTEGER NOT NULL,
         duration_minutes INTEGER NOT NULL,
         calories INTEGER NOT NULL,
+        reps INTEGER NOT NULL DEFAULT 50,
+        updated_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         synced INTEGER NOT NULL DEFAULT 0
       )

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
 import '../../data/models/activity_model.dart';
+import '../../data/models/sport_model.dart';
 import '../../data/repositories/activity_repository.dart';
 import '../../data/repositories/sport_repository.dart';
+import 'activity_display.dart';
 
 /// [PBI-10.5] Menyaring riwayat berdasarkan olahraga. null = semua.
 List<ActivitySummary> filterBySport(
@@ -19,14 +21,10 @@ String _date(DateTime d) => '${_two(d.day)}/${_two(d.month)}/${d.year}';
 String _dateTime(DateTime d) =>
     '${_date(d)}  ${_two(d.hour)}:${_two(d.minute)}';
 
-String _duration(int seconds) {
-  final m = seconds ~/ 60;
-  return m > 0 ? '$m mnt' : '$seconds dtk';
-}
-
 // ============================================================================
 // [PBI-10.4] HistorySection — daftar riwayat aktivitas di halaman Progress
 // [PBI-10.5] Filter tanggal dan jenis olahraga
+// Tampilan tiap sesi menyesuaikan jenisnya (lihat activity_display.dart).
 // ============================================================================
 class HistorySection extends StatefulWidget {
   const HistorySection({super.key});
@@ -39,12 +37,12 @@ class _HistorySectionState extends State<HistorySection> {
   static const int _maxShown = 50;
 
   final ActivityRepository _activities = ActivityRepository();
-  final SportRepository _sports = SportRepository();
+  final SportRepository _sportRepo = SportRepository();
 
   late DateTimeRange _range;
   String? _sportId;
   List<ActivitySummary> _all = const [];
-  Map<String, String> _sportNames = const {};
+  Map<String, Sport> _sports = const {};
   bool _loading = true;
   String? _error;
 
@@ -70,19 +68,19 @@ class _HistorySectionState extends State<HistorySection> {
         from: _range.start,
         to: _range.end,
       );
-      var names = _sportNames;
-      if (names.isEmpty) {
+      var sports = _sports;
+      if (sports.isEmpty) {
         try {
-          final sports = await _sports.loadAll();
-          names = {for (final s in sports) s.id: s.name};
+          final list = await _sportRepo.loadAll();
+          sports = {for (final s in list) s.id: s};
         } catch (_) {
-          // Nama olahraga tidak wajib; id akan ditampilkan apa adanya.
+          // Data olahraga tidak wajib; id dan ikon bawaan dipakai.
         }
       }
       if (!mounted) return;
       setState(() {
         _all = items;
-        _sportNames = names;
+        _sports = sports;
         // Jika olahraga yang dipilih tidak ada di rentang baru, reset filter.
         if (_sportId != null && !items.any((a) => a.sportId == _sportId)) {
           _sportId = null;
@@ -112,10 +110,7 @@ class _HistorySectionState extends State<HistorySection> {
     await _load();
   }
 
-  String _nameOf(String? id) {
-    if (id == null) return 'Aktivitas bebas';
-    return _sportNames[id] ?? id;
-  }
+  String _nameOf(String id) => _sports[id]?.name ?? id;
 
   @override
   Widget build(BuildContext context) {
@@ -201,8 +196,7 @@ class _HistorySectionState extends State<HistorySection> {
             ),
           )
         else ...[
-          for (final a in shown)
-            _HistoryTile(item: a, title: _nameOf(a.sportId)),
+          for (final a in shown) _HistoryTile(item: a, sports: _sports),
           if (shownAll.length > _maxShown)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -222,10 +216,10 @@ class _HistorySectionState extends State<HistorySection> {
 }
 
 class _HistoryTile extends StatelessWidget {
-  const _HistoryTile({required this.item, required this.title});
+  const _HistoryTile({required this.item, required this.sports});
 
   final ActivitySummary item;
-  final String title;
+  final Map<String, Sport> sports;
 
   @override
   Widget build(BuildContext context) {
@@ -238,14 +232,14 @@ class _HistoryTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.directions_run_rounded, color: AppColors.primary),
+          Icon(iconOf(item, sports), color: AppColors.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  titleOf(item, sports),
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary,
@@ -266,15 +260,14 @@ class _HistoryTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${item.steps} langkah',
+                headlineOf(item),
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   color: AppColors.secondary,
                 ),
               ),
               Text(
-                '${_duration(item.durationSeconds)} • '
-                '${item.calories.round()} kkal',
+                detailOf(item),
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.textSecondary,

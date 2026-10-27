@@ -224,8 +224,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 20),
         DailyActivityCard(
-          steps: _today.steps,
+          durationMinutes: (_today.durationSeconds / 60).round(),
           calories: _today.calories.round(),
+          reps: _today.reps,
+          sessions: _today.sessions,
+          steps: _today.steps,
           distanceKm: _today.distanceMeters / 1000,
           progress: _progress,
         ),

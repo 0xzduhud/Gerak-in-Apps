@@ -9,18 +9,29 @@ import '../models/activity_model.dart';
 // ============================================================================
 // [PBI-8.7] DailyTotals — total aktivitas satu hari (untuk card Daily Activity)
 // ============================================================================
+// ============================================================================
+// [PBI-8.7] DailyTotals — total aktivitas satu hari (untuk card Daily Activity)
+// ============================================================================
 class DailyTotals {
   const DailyTotals({
     this.steps = 0,
     this.calories = 0,
     this.distanceMeters = 0,
     this.durationSeconds = 0,
+    this.reps = 0,
+    this.sessions = 0,
   });
 
   final int steps;
   final double calories;
   final double distanceMeters;
   final int durationSeconds;
+
+  /// Total repetisi (sesi repetisi dan Mode Gerakan).
+  final int reps;
+
+  /// Jumlah sesi latihan.
+  final int sessions;
 
   static const DailyTotals empty = DailyTotals();
 
@@ -29,17 +40,23 @@ class DailyTotals {
     var calories = 0.0;
     var distance = 0.0;
     var seconds = 0;
+    var reps = 0;
+    var sessions = 0;
     for (final a in items) {
       steps += a.steps;
       calories += a.calories;
       distance += a.distanceMeters;
       seconds += a.durationSeconds;
+      reps += a.reps;
+      sessions++;
     }
     return DailyTotals(
       steps: steps,
       calories: calories,
       distanceMeters: distance,
       durationSeconds: seconds,
+      reps: reps,
+      sessions: sessions,
     );
   }
 }

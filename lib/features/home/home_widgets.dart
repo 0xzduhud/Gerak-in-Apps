@@ -65,25 +65,44 @@ class HomeHeader extends StatelessWidget {
 // PBI-6.4: kerangka card Daily Activity
 // PBI-6.4: kerangka card Daily Activity
 // PBI-10.8: indikator progres target harian (opsional, tampil jika [progress] ada)
+// PBI-6.4: card Daily Activity — berfokus pada latihan (menit, kalori, repetisi).
+// Langkah dan jarak hanya tampil bila ada (kardio).
+// PBI-10.8: indikator progres target harian (tampil jika ada target aktif).
 class DailyActivityCard extends StatelessWidget {
   const DailyActivityCard({
     super.key,
-    this.steps = 0,
+    this.durationMinutes = 0,
     this.calories = 0,
+    this.reps = 0,
+    this.sessions = 0,
+    this.steps = 0,
     this.distanceKm = 0,
     this.progress,
   });
 
-  final int steps;
+  final int durationMinutes;
   final int calories;
+  final int reps;
+  final int sessions;
+  final int steps;
   final double distanceKm;
 
   /// Capaian terhadap target harian. null = indikator disembunyikan.
   final TargetProgress? progress;
 
+  String get _summaryLine {
+    if (sessions == 0 && steps == 0) return 'Belum ada latihan hari ini';
+    return [
+      if (sessions > 0) '$sessions sesi',
+      if (steps > 0) '$steps langkah',
+      if (distanceKm > 0) '${distanceKm.toStringAsFixed(1)} km',
+    ].join(' • ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = progress;
+    final showProgress = p != null && p.activeCount > 0;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -100,7 +119,7 @@ class DailyActivityCard extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.directions_walk_rounded, color: AppColors.neutral),
+              Icon(Icons.fitness_center_rounded, color: AppColors.neutral),
               SizedBox(width: 8),
               Text(
                 'Daily Activity',
@@ -115,16 +134,18 @@ class DailyActivityCard extends StatelessWidget {
           const SizedBox(height: 18),
           Row(
             children: [
-              _ActivityStat(value: '$steps', label: 'Langkah'),
-              _ActivityStat(value: '$calories', label: 'Kalori (kcal)'),
-              _ActivityStat(
-                value: distanceKm.toStringAsFixed(1),
-                label: 'Jarak (km)',
-              ),
+              _ActivityStat(value: '$durationMinutes', label: 'Menit latihan'),
+              _ActivityStat(value: '$calories', label: 'Kalori (kkal)'),
+              _ActivityStat(value: '$reps', label: 'Repetisi'),
             ],
           ),
-          if (p != null) ...[
-            const SizedBox(height: 16),
+          const SizedBox(height: 10),
+          Text(
+            _summaryLine,
+            style: const TextStyle(fontSize: 12, color: AppColors.neutral),
+          ),
+          if (showProgress) ...[
+            const SizedBox(height: 14),
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
@@ -150,7 +171,8 @@ class DailyActivityCard extends StatelessWidget {
                   child: Text(
                     p.allAchieved
                         ? 'Target hari ini tercapai!'
-                        : '${p.achievedCount} dari 3 target tercapai',
+                        : '${p.achievedCount} dari ${p.activeCount} '
+                            'target tercapai',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

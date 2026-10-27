@@ -26,7 +26,7 @@ class _ActivityChartSectionState extends State<ActivityChartSection> {
   final ActivityRepository _activities = ActivityRepository();
 
   ChartRange _range = ChartRange.weekly;
-  ChartMetric _metric = ChartMetric.steps;
+  ChartMetric _metric = ChartMetric.duration;
   List<DayBucket> _buckets = const [];
   bool _loading = true;
   String? _error;
@@ -63,10 +63,12 @@ class _ActivityChartSectionState extends State<ActivityChartSection> {
     }
   }
 
-  double get _targetValue => switch (_metric) {
-        ChartMetric.steps => widget.target.steps.toDouble(),
+    double get _targetValue => switch (_metric) {
         ChartMetric.duration => widget.target.durationMinutes.toDouble(),
+        ChartMetric.reps => widget.target.reps.toDouble(),
         ChartMetric.calories => widget.target.calories.toDouble(),
+        ChartMetric.steps => widget.target.steps.toDouble(),
+        ChartMetric.sessions => 0, // tidak ada target sesi
       };
 
   @override
@@ -100,6 +102,12 @@ class _ActivityChartSectionState extends State<ActivityChartSection> {
           ),
         ),
         const SizedBox(height: 10),
+
+        if (!_loading && _error == null) ...[
+          _SummaryStrip(summary: summarize(_buckets)),
+          const SizedBox(height: 10),
+        ],
+
         // Pengalih mingguan / bulanan (PBI-10.7)
         Wrap(
           spacing: 8,
@@ -311,4 +319,71 @@ class _BarChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BarChartPainter old) => true;
+}
+
+// Ringkasan keseluruhan rentang yang sedang dilihat.
+class _SummaryStrip extends StatelessWidget {
+  const _SummaryStrip({required this.summary});
+
+  final ChartSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _SummaryChip(label: 'Sesi', value: formatNumber(summary.sessions)),
+        _SummaryChip(
+          label: 'Durasi',
+          value: '${formatNumber(summary.minutes)} mnt',
+        ),
+        _SummaryChip(
+          label: 'Kalori',
+          value: '${formatNumber(summary.calories)} kkal',
+        ),
+        _SummaryChip(label: 'Repetisi', value: formatNumber(summary.reps)),
+        if (summary.steps > 0)
+          _SummaryChip(label: 'Langkah', value: formatNumber(summary.steps)),
+      ],
+    );
+  }
+}
+
+class _SummaryChip extends StatelessWidget {
+  const _SummaryChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
