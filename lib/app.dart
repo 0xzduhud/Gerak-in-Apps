@@ -14,8 +14,79 @@ import 'features/premium/subscription_provider.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
-class GerakInApp extends StatelessWidget {
+class GerakInApp extends StatefulWidget {
   const GerakInApp({super.key});
+
+  @override
+  State<GerakInApp> createState() => _GerakInAppState();
+}
+
+class _GerakInAppState extends State<GerakInApp> with WidgetsBindingObserver {
+  DateTime? _backgroundedAt;
+
+  static const Duration _loginTimeout = Duration(minutes: 10);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _backgroundedAt ??= DateTime.now();
+      debugPrint('[LIFECYCLE] Aplikasi berada di latar belakang.');
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      _handleAppResumed();
+    }
+  }
+
+  void _handleAppResumed() {
+    final backgroundedAt = _backgroundedAt;
+
+    if (backgroundedAt == null) return;
+
+    // Reset waktu agar satu periode di latar belakang
+    // hanya diperiksa satu kali.
+    _backgroundedAt = null;
+
+    final elapsed = DateTime.now().difference(backgroundedAt);
+
+    debugPrint(
+      '[LIFECYCLE] Durasi di latar belakang: '
+      '${elapsed.inSeconds} detik.',
+    );
+
+    if (elapsed < _loginTimeout) {
+      debugPrint('[LIFECYCLE] Belum 10 menit, sesi tetap dilanjutkan.');
+      return;
+    }
+
+    debugPrint('[LIFECYCLE] Sudah 10 menit, arahkan pengguna ke Login.');
+
+    // Tunggu sampai navigator tersedia.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final navigator = rootNavigatorKey.currentState;
+
+      if (navigator == null || !navigator.mounted) return;
+
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,22 +136,20 @@ class _SplashScreenState extends State<SplashScreen> {
 
       if (!mounted) return;
 
-      // Periksa apakah proses aplikasi pernah berjalan.
+      // Pertahankan pemeriksaan proses aplikasi sebelumnya.
       final previousProcess = await SecureStorageService.wasAppProcessStarted();
 
-      // Tandai proses aplikasi yang sedang berjalan.
       await SecureStorageService.markAppProcessStarted();
 
       if (!mounted) return;
 
-      // Proses aplikasi dimulai ulang: wajib melalui halaman Login.
-      // LoginScreen menentukan apakah biometrik perlu ditampilkan.
+      // Jika aplikasi dimulai ulang, arahkan ke Login.
       if (previousProcess) {
         _goToLogin();
         return;
       }
 
-      // Pada proses pertama, pulihkan sesi yang masih valid.
+      // Pada proses pertama, periksa sesi yang tersedia.
       final session = Supabase.instance.client.auth.currentSession;
 
       if (session == null || session.accessToken.isEmpty) {

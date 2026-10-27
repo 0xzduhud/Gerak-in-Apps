@@ -230,8 +230,6 @@ class AuthRepository {
         'status=${error.status}, details=${error.details}',
       );
 
-      // Menangani 401 jika SDK melempar FunctionException
-      // sebelum respons mencapai pemeriksaan status di atas.
       if (error.status == 401) {
         throw Exception('Email/username atau password salah.');
       }
@@ -276,6 +274,47 @@ class AuthRepository {
     return message;
   }
 
+  /// Memperbarui sesi Supabase menggunakan refresh token,
+  /// lalu mengambil profil pengguna untuk login biometrik.
+  Future<Map<String, dynamic>?> refreshSessionAndGetUser() async {
+    try {
+      final response = await _supabase.auth.refreshSession();
+
+      final session = response.session;
+      final authUser = response.user;
+
+      if (session == null || authUser == null) {
+        debugPrint('[BIOMETRIC] Sesi tidak tersedia setelah refresh.');
+        return null;
+      }
+
+      final profile = await _supabase
+          .from('users')
+          .select()
+          .eq('auth_user_id', authUser.id)
+          .maybeSingle();
+
+      if (profile == null) {
+        debugPrint('[BIOMETRIC] Profil pengguna tidak ditemukan.');
+        return null;
+      }
+
+      debugPrint('[BIOMETRIC] Sesi berhasil diperbarui.');
+
+      return Map<String, dynamic>.from(profile);
+    } on AuthException catch (error) {
+      debugPrint('[BIOMETRIC] Refresh sesi gagal: ${error.message}');
+      return null;
+    } on PostgrestException catch (error) {
+      debugPrint('[BIOMETRIC] Pengambilan profil gagal: ${error.message}');
+      return null;
+    } catch (error, stackTrace) {
+      debugPrint('[BIOMETRIC] Pemulihan sesi gagal: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return null;
+    }
+  }
+
   /// Memvalidasi sesi sebelum pengguna diizinkan masuk ke Home.
   Future<Map<String, dynamic>?> validateSession(String token) async {
     try {
@@ -286,7 +325,7 @@ class AuthRepository {
         return null;
       }
 
-      // Jangan memperpanjang sesi secara manual jika access token habis.
+      // Mempertahankan perilaku validasi sesi yang sudah ada.
       if (session.isExpired) {
         debugPrint('[SESSION] Access token kedaluwarsa. Login diperlukan.');
         return null;
