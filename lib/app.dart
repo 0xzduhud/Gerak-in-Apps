@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:local_auth/local_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import 'package:provider/provider.dart';
 
 import 'core/constants.dart';
@@ -13,6 +11,8 @@ import 'features/community/community_provider.dart';
 import 'features/games/game_provider.dart';
 import 'features/home/home_screen.dart';
 import 'features/premium/subscription_provider.dart';
+
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 class GerakInApp extends StatelessWidget {
   const GerakInApp({super.key});
@@ -26,6 +26,7 @@ class GerakInApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
       ],
       child: MaterialApp(
+        navigatorKey: rootNavigatorKey,
         title: AppConstants.appName,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark,
@@ -44,26 +45,42 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   final AuthRepository _repository = AuthRepository();
-  final LocalAuthentication _localAuth = LocalAuthentication();
 
   bool _checkingSession = false;
+  bool _navigated = false;
 
   @override
   void initState() {
     super.initState();
     _checkSession();
-  } 
+  }
 
   Future<void> _checkSession() async {
-    if (_checkingSession) return;
+    if (_checkingSession || _navigated) return;
+
     _checkingSession = true;
 
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-
-    if (!mounted) return;
-
     try {
-      // Ambil sesi yang dikelola langsung oleh Supabase Auth.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      if (!mounted) return;
+
+      // Periksa apakah proses aplikasi pernah berjalan.
+      final previousProcess = await SecureStorageService.wasAppProcessStarted();
+
+      // Tandai proses aplikasi yang sedang berjalan.
+      await SecureStorageService.markAppProcessStarted();
+
+      if (!mounted) return;
+
+      // Proses aplikasi dimulai ulang: wajib melalui halaman Login.
+      // LoginScreen menentukan apakah biometrik perlu ditampilkan.
+      if (previousProcess) {
+        _goToLogin();
+        return;
+      }
+
+      // Pada proses pertama, pulihkan sesi yang masih valid.
       final session = Supabase.instance.client.auth.currentSession;
 
       if (session == null || session.accessToken.isEmpty) {
@@ -71,48 +88,16 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      // Ambil profil yang terhubung dengan akun Supabase Auth.
       final user = await _repository.validateSession(session.accessToken);
 
       if (!mounted) return;
 
       if (user == null) {
-        // Sesi ada, tetapi profil belum ditemukan atau tidak dapat dibaca.
-        // Jangan menampilkan Home tanpa data profil yang valid.
         _goToLogin();
         return;
       }
 
-      final biometricEnabled = await SecureStorageService.isBiometricEnabled();
-
-      if (!mounted) return;
-
-      if (biometricEnabled) {
-        final canCheckBiometrics = await _localAuth.canCheckBiometrics;
-        final isDeviceSupported = await _localAuth.isDeviceSupported();
-
-        if (!mounted) return;
-
-        if (!canCheckBiometrics && !isDeviceSupported) {
-          _goToLogin();
-          return;
-        }
-
-        final authenticated = await _localAuth.authenticate(
-          localizedReason: 'Verifikasi identitas untuk membuka Gerak-in',
-          biometricOnly: true,
-          persistAcrossBackgrounding: true,
-        );
-
-        if (!mounted) return;
-
-        if (!authenticated) {
-          _goToLogin();
-          return;
-        }
-      }
-
-      if (!mounted) return;
+      _navigated = true;
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
@@ -123,28 +108,26 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
         ),
       );
-    } on AuthException catch (error) {
-      debugPrint('Sesi Supabase bermasalah: ${error.message}');
-      if (mounted) _goToLogin();
     } catch (error, stackTrace) {
-      debugPrint('Gagal memulihkan sesi: $error');
+      debugPrint('[SPLASH] Gagal memeriksa sesi: $error');
       debugPrintStack(stackTrace: stackTrace);
 
-      if (mounted) _goToLogin();
+      _goToLogin();
     }
   }
 
   Future<void> _logout() async {
     try {
-      await SecureStorageService.saveBiometricEnabled(false);
       await _repository.logout();
     } catch (error) {
-      debugPrint('Gagal logout: $error');
+      debugPrint('[SPLASH] Gagal logout: $error');
     }
   }
 
   void _goToLogin() {
-    if (!mounted) return;
+    if (!mounted || _navigated) return;
+
+    _navigated = true;
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: (_) => const LoginScreen()),

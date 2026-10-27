@@ -6,6 +6,7 @@ import '../../core/services/secure_storage_service.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../home/home_screen.dart';
 import 'register_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,7 +17,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
   final _repository = AuthRepository();
   final _biometricService = BiometricService();
@@ -25,24 +26,51 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _biometricEnabled = false;
   bool _biometricAvailable = false;
+  bool _autoBiometricAttempted = false;
 
   @override
   void initState() {
     super.initState();
-    _checkBiometricStatus();
+    _initializeLoginScreen();
+  }
+
+  /// Periksa status biometrik, lalu tampilkan autentikasi otomatis
+  /// jika biometrik aktif dan tersedia pada perangkat.
+  Future<void> _initializeLoginScreen() async {
+    await _checkBiometricStatus();
+
+    if (!mounted ||
+        !_biometricEnabled ||
+        !_biometricAvailable ||
+        _autoBiometricAttempted) {
+      return;
+    }
+
+    // Beri waktu agar halaman Login selesai ditampilkan.
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+
+    if (!mounted ||
+        !_biometricEnabled ||
+        !_biometricAvailable ||
+        _autoBiometricAttempted) {
+      return;
+    }
+
+    _autoBiometricAttempted = true;
+    await _loginWithBiometrics();
   }
 
   Future<void> _checkBiometricStatus() async {
     try {
       final enabled = await SecureStorageService.isBiometricEnabled();
       final available = await _biometricService.isAvailable();
-      final token = await _repository.getSavedToken();
 
       if (!mounted) return;
 
       setState(() {
-        _biometricEnabled =
-            enabled && available && token != null && token.isNotEmpty;
+        // Status biometrik tidak bergantung pada keberadaan token.
+        // Token diperiksa setelah autentikasi biometrik berhasil.
+        _biometricEnabled = enabled && available;
         _biometricAvailable = available;
       });
     } catch (error) {
@@ -59,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -83,6 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  /// Login manual tetap menggunakan alur Sprint 5 yang sudah ada.
   Future<void> _login() async {
     if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
@@ -90,9 +119,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
 
     try {
-      // Login utama melalui Supabase Auth.
       final result = await _repository.login(
-        email: _emailController.text.trim(),
+        identifier: _identifierController.text.trim(),
         password: _passwordController.text,
       );
 
@@ -103,7 +131,8 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Respons login tidak lengkap.');
       }
 
-      // Tes endpoint activities dengan token dari login.
+      // Pemeriksaan diagnostik lama tetap dipertahankan.
+      // Kegagalan endpoint activities tidak membatalkan login.
       try {
         final response = await Supabase.instance.client.functions.invoke(
           'activities',
@@ -120,7 +149,6 @@ class _LoginScreenState extends State<LoginScreen> {
         debugPrint('ACTIVITIES ERROR: $error');
       }
 
-      // Tetap lanjut ke Home meskipun tes activities gagal.
       await _repository.saveSession(token);
 
       if (!mounted) return;
@@ -133,6 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// Autentikasi biometrik otomatis maupun melalui tombol.
   Future<void> _loginWithBiometrics() async {
     if (_loading) return;
 
@@ -142,24 +171,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final enabled = await SecureStorageService.isBiometricEnabled();
 
       if (!enabled) {
+        if (mounted) {
+          setState(() => _biometricEnabled = false);
+        }
+
         _showMessage(
           'Login biometrik belum aktif. Silakan login '
-          'dengan email dan password.',
-        );
-        return;
-      }
-
-      final token = await _repository.getSavedToken();
-
-      if (token == null || token.isEmpty) {
-        await SecureStorageService.saveBiometricEnabled(false);
-
-        if (!mounted) return;
-
-        setState(() => _biometricEnabled = false);
-        _showMessage(
-          'Sesi tidak ditemukan. Silakan login '
-          'dengan email dan password.',
+          'dengan username/email dan password.',
         );
         return;
       }
@@ -167,6 +185,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final available = await _biometricService.isAvailable();
 
       if (!available) {
+        if (mounted) {
+          setState(() {
+            _biometricAvailable = false;
+            _biometricEnabled = false;
+          });
+        }
+
         _showMessage(
           'Biometrik tidak tersedia. Periksa pengaturan '
           'keamanan perangkat.',
@@ -174,6 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Minta autentikasi biometrik terlebih dahulu.
       final authenticated = await _biometricService.authenticate();
 
       if (!authenticated) {
@@ -181,16 +207,24 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Biometrik berhasil, sekarang periksa sesi Supabase.
+      final token = await _repository.getSavedToken();
+
+      if (token == null || token.isEmpty) {
+        _showMessage(
+          'Autentikasi biometrik berhasil, tetapi sesi tidak ditemukan. '
+          'Silakan login dengan username/email dan password.',
+        );
+        return;
+      }
+
       final user = await _repository.validateSession(token);
 
       if (user == null) {
-        if (!mounted) return;
-
         _showMessage(
-          'Sesi tidak valid atau telah kedaluwarsa. '
-          'Silakan login kembali dengan email dan password.',
+          'Sesi Supabase tidak valid atau telah kedaluwarsa. '
+          'Silakan login kembali dengan username/email dan password.',
         );
-        await _checkBiometricStatus();
         return;
       }
 
@@ -209,6 +243,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _logout() async {
     try {
+      // Logout manual tetap menonaktifkan fitur biometrik,
+      // sesuai perilaku yang sudah ada pada proyek.
       await SecureStorageService.saveBiometricEnabled(false);
       await _repository.logout();
 
@@ -267,21 +303,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 20),
                   TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
+                    controller: _identifierController,
+                    keyboardType: TextInputType.text,
+                    autocorrect: false,
                     decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.email_outlined),
+                      labelText: 'Username atau Email',
+                      hintText: 'Masukkan username atau email',
+                      prefixIcon: Icon(Icons.person_outline),
                       border: OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'Email wajib diisi.';
+                        return 'Username atau email wajib diisi.';
                       }
 
-                      if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-                          .hasMatch(value.trim())) {
-                        return 'Format email tidak valid.';
+                      if (value.trim().contains(' ')) {
+                        return 'Username atau email tidak boleh mengandung spasi.';
                       }
 
                       return null;
@@ -333,6 +370,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           )
                         : const Text('Masuk'),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ForgotPasswordScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text('Lupa Password?'),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   if (_biometricEnabled && _biometricAvailable)

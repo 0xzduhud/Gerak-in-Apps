@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme.dart';
+import '../../data/models/target_model.dart' show TargetProgress;
 import '../community/community_provider.dart';
 
-// PBI-6.3: header sapaan (kiri) + ikon notifikasi (kanan)
+// Header sapaan dan ikon notifikasi.
 class HomeHeader extends StatelessWidget {
   const HomeHeader({
     super.key,
@@ -61,21 +62,27 @@ class HomeHeader extends StatelessWidget {
   }
 }
 
-// PBI-6.4: card Daily Activity
+// Daily Activity dan indikator progres target harian.
 class DailyActivityCard extends StatelessWidget {
   const DailyActivityCard({
     super.key,
     this.steps = 0,
     this.calories = 0,
     this.distanceKm = 0,
+    this.progress,
   });
 
   final int steps;
   final int calories;
   final double distanceKm;
 
+  /// Capaian terhadap target harian. null = indikator disembunyikan.
+  final TargetProgress? progress;
+
   @override
   Widget build(BuildContext context) {
+    final p = progress;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -115,6 +122,53 @@ class DailyActivityCard extends StatelessWidget {
               ),
             ],
           ),
+          if (p != null) ...[
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: p.overallRatio,
+                minHeight: 8,
+                backgroundColor: const Color(0x33171132),
+                color: AppColors.neutral,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                if (p.allAchieved)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 6),
+                    child: Icon(
+                      Icons.check_circle_rounded,
+                      size: 16,
+                      color: AppColors.neutral,
+                    ),
+                  ),
+                Expanded(
+                  child: Text(
+                    p.allAchieved
+                        ? 'Target hari ini tercapai!'
+                        : '${p.achievedCount} dari 3 target tercapai',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.neutral,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${(p.overallRatio * 100).floor()}%',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.neutral,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -157,7 +211,7 @@ class _ActivityStat extends StatelessWidget {
   }
 }
 
-// PBI-6.5: card rekomendasi AI
+// Card rekomendasi AI.
 class AiRecommendationCard extends StatelessWidget {
   const AiRecommendationCard({super.key});
 
@@ -214,7 +268,7 @@ class AiRecommendationCard extends StatelessWidget {
   }
 }
 
-// PBI-6.6: empat menu bulat
+// Empat menu bulat di halaman Home.
 class HomeMenuItem {
   const HomeMenuItem({
     required this.icon,
@@ -286,7 +340,7 @@ class _RoundMenuButton extends StatelessWidget {
   }
 }
 
-// PBI-6.8: menampilkan maksimal 3 postingan terbaru
+// Menampilkan maksimal tiga postingan komunitas terbaru.
 class CommunityFeedCard extends StatefulWidget {
   const CommunityFeedCard({super.key, required this.onSeeAll});
 

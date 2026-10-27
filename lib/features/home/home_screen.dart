@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/services/ai_recommendation_service.dart';
 import '../../core/utils/formatters.dart';
+import '../../data/models/target_model.dart';
 import '../../data/repositories/activity_repository.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../../data/repositories/target_repository.dart';
 import '../achievement/achievement_screen.dart';
 import '../auth/login_screen.dart';
 import '../chatbot/chat_screen.dart';
@@ -36,11 +38,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  // Total aktivitas hari ini.
+  // Total aktivitas hari ini dan progres target harian.
   final ActivityRepository _activities = ActivityRepository();
-  DailyTotals _today = DailyTotals.empty;
+  final TargetRepository _targets = TargetRepository();
 
-  // Future rekomendasi dibuat sekali.
+  DailyTotals _today = DailyTotals.empty;
+  TargetProgress? _progress;
+
+  // Future rekomendasi dibuat sekali agar tidak meminta rekomendasi
+  // AI berulang kali setiap Home dibangun ulang.
   Future<Map<String, dynamic>?>? _recommendationFuture;
 
   @override
@@ -60,6 +66,14 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final totals = await _activities.totalsForDay(DateTime.now());
 
+      // Kegagalan membaca target tidak boleh menyembunyikan aktivitas.
+      TargetProgress? progress;
+      try {
+        progress = TargetProgress.from(await _targets.load(), totals);
+      } catch (error) {
+        debugPrint('Gagal memuat target harian: $error');
+      }
+
       if (!mounted) return;
 
       debugPrint(
@@ -68,9 +82,13 @@ class _HomeScreenState extends State<HomeScreen> {
         'kkal=${totals.calories.toStringAsFixed(1)}',
       );
 
-      setState(() => _today = totals);
-    } catch (e) {
-      debugPrint('Gagal memuat aktivitas hari ini: $e');
+      setState(() {
+        _today = totals;
+        _progress = progress;
+      });
+    } catch (error) {
+      // Kegagalan membaca data tidak boleh merusak Home.
+      debugPrint('Gagal memuat aktivitas hari ini: $error');
     }
   }
 
@@ -89,8 +107,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Pengguna';
   }
 
-  void _open(Widget page) {
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+  Future<void> _open(Widget page) async {
+    await Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => page));
+
+    // Data mungkin berubah saat pengguna berada di halaman lain.
+    if (mounted) {
+      await _loadToday();
+    }
   }
 
   Future<void> _handleLogout() async {
@@ -146,6 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final isHomeTab = _selectedIndex == 0;
 
     return Scaffold(
+      // Home dan Community memiliki header sendiri.
       appBar: (isHomeTab || _selectedIndex == 3)
           ? null
           : AppBar(
@@ -158,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: IndexedStack(index: _selectedIndex, children: pages),
       ),
 
-      // Tombol chatbot hanya muncul di Home.
+      // Tombol chatbot hanya muncul pada tab Home.
       floatingActionButton: isHomeTab
           ? FloatingActionButton(
               tooltip: 'Fitness Assistant',
@@ -211,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Susunan Home terbaru.
+  // Susunan halaman Home.
   Widget _buildHomePage() {
     final greeting = greetingByHour(DateTime.now().hour);
 
@@ -225,21 +250,19 @@ class _HomeScreenState extends State<HomeScreen> {
             _open(const NotificationScreen());
           },
         ),
-
         const SizedBox(height: 20),
-
         DailyActivityCard(
           steps: _today.steps,
           calories: _today.calories.round(),
           distanceKm: _today.distanceMeters / 1000,
+          progress: _progress,
         ),
-
         const SizedBox(height: 16),
 
+        // Rekomendasi AI dari service yang sudah ada.
         _buildAiRecommendationCard(),
 
         const SizedBox(height: 24),
-
         RoundMenuRow(
           items: [
             HomeMenuItem(
@@ -264,7 +287,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-
         const SizedBox(height: 24),
 
         // Komunitas: tampilkan maksimal 3 postingan terbaru.
@@ -276,13 +298,12 @@ class _HomeScreenState extends State<HomeScreen> {
             });
           },
         ),
-
         const SizedBox(height: 16),
       ],
     );
   }
 
-  // Rekomendasi AI dari service yang sudah ada.
+  // Kartu rekomendasi AI.
   Widget _buildAiRecommendationCard() {
     final future = _recommendationFuture;
 

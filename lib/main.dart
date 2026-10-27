@@ -4,15 +4,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
+import 'core/services/notification_service.dart';
 import 'app.dart';
 // ignore: unused_import
 import 'features/premium/subscription_provider.dart';
+import 'features/auth/reset_password_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // PBI-8.5: port komunikasi UI <-> layanan latar belakang (bukan untuk web).
-  if (!kIsWeb) FlutterForegroundTask.initCommunicationPort();
+
+  // PBI-8.5: port komunikasi UI <-> layanan latar belakang.
+  if (!kIsWeb) {
+    FlutterForegroundTask.initCommunicationPort();
+  }
 
   String errorMessage = 'Penyebab tidak diketahui.';
 
@@ -41,6 +45,37 @@ Future<void> main() async {
     }
 
     await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
+
+    // Listener untuk mendeteksi pemulihan password.
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      debugPrint('AUTH EVENT: ${data.event}');
+      debugPrint(
+        'SESSION: ${data.session != null ? "tersedia" : "tidak tersedia"}',
+      );
+
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        debugPrint('Event passwordRecovery diterima.');
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final navigator = rootNavigatorKey.currentState;
+
+          if (navigator == null) {
+            debugPrint('Navigator belum tersedia untuk membuka halaman reset.');
+            return;
+          }
+
+          navigator.pushAndRemoveUntil(
+            MaterialPageRoute<void>(
+              builder: (_) => const ResetPasswordScreen(),
+            ),
+            (route) => false,
+          );
+        });
+      }
+    });
+
+    // PBI-13B: inisialisasi notifikasi.
+    await NotificationService.instance.init();
 
     runApp(const GerakInApp());
   } catch (error, stackTrace) {
@@ -89,3 +124,4 @@ Future<void> main() async {
     );
   }
 }
+//ss
