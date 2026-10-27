@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -5,21 +6,39 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/place_model.dart';
+import 'nominatim_place_source.dart';
 
 // ============================================================================
-// [PBI-11.3] PlaceRepository — Overpass API + cache sementara per area
+// [PBI-11.3] PlaceRepository — Overpass API (dua server, berlomba) +
+// cadangan Nominatim + cache sementara per area
 // ============================================================================
 
 /// Mengirim query Overpass dan mengembalikan isi JSON-nya.
 typedef OverpassFetcher = Future<String> Function(String query);
 
+/// Sumber cadangan saat Overpass gagal.
+typedef PlaceFallback = Future<List<Place>> Function(
+  double lat,
+  double lng,
+  int radius,
+);
+
+enum PlacesSource { cache, overpass, nominatim }
+
 class PlacesResult {
-  const PlacesResult(this.places, {this.stale = false});
+  const PlacesResult(
+    this.places, {
+    this.stale = false,
+    this.source = PlacesSource.overpass,
+  });
 
   final List<Place> places;
 
   /// true = internet gagal, yang ditampilkan adalah data lama dari cache.
   final bool stale;
+
+  /// Dari mana data ini berasal.
+  final PlacesSource source;
 }
 
 class CachedPlaces {
@@ -98,20 +117,84 @@ class PrefsPlaceCache implements PlaceCache {
   }
 }
 
+String _shortError(Object e) {
+  final s = e.toString().replaceFirst('Exception: ', '');
+  return s.length > 120 ? '${s.substring(0, 120)}...' : s;
+}
+
+/// Menjalankan semua [tasks] bersamaan; mengembalikan hasil yang pertama
+/// BERHASIL. Jika semuanya gagal, melempar satu pesan berisi semua kegagalan
+/// (berguna untuk mencari penyebab masalah).
+Future<T> firstSuccess<T>(Map<String, Future<T> Function()> tasks) {
+  if (tasks.isEmpty) {
+    return Future<T>.error(Exception('Tidak ada sumber data'));
+  }
+  final completer = Completer<T>();
+  final errors = <String>[];
+  var pending = tasks.length;
+
+  tasks.forEach((name, run) {
+    Future<T> future;
+    try {
+      future = run();
+    } catch (e) {
+      future = Future<T>.error(e);
+    }
+    future.then(
+      (value) {
+        if (!completer.isCompleted) completer.complete(value);
+      },
+      onError: (Object e) {
+        errors.add('$name: ${_shortError(e)}');
+        pending--;
+        if (pending == 0 && !completer.isCompleted) {
+          completer.completeError(Exception(errors.join(' | ')));
+        }
+      },
+    );
+  });
+  return completer.future;
+}
+
+/// Overpass kadang membalas HTTP 200 tetapi isinya halaman error atau
+/// "runtime error ... timed out" dengan hasil kosong. Itu harus dianggap gagal,
+/// bukan "tidak ada tempat".
+void ensureValidOverpassBody(String body) {
+  final t = body.trimLeft();
+  if (!t.startsWith('{')) {
+    throw Exception('jawaban bukan JSON (server sibuk)');
+  }
+  if (t.contains('"remark"') &&
+      (t.contains('timed out') ||
+          t.contains('out of memory') ||
+          t.contains('runtime error'))) {
+    throw Exception('server kewalahan (query timeout)');
+  }
+}
+
 class PlaceRepository {
+  /// Jika [fetcher] tidak diberikan (pemakaian nyata), sumber cadangan
+  /// Nominatim ikut dipakai. Saat pengujian dengan [fetcher] sendiri,
+  /// cadangan mati kecuali [fallback] diberikan.
   PlaceRepository({
     OverpassFetcher? fetcher,
+    PlaceFallback? fallback,
     PlaceCache? cache,
     DateTime Function()? now,
   })  : _fetcher = fetcher ?? _fetchFromOverpass,
+        _fallback =
+            fallback ?? (fetcher == null ? NominatimPlaceSource().nearby : null),
         _cache = cache ?? PrefsPlaceCache(),
         _now = now ?? DateTime.now;
 
-  /// Server publik Overpass sering sibuk, jadi ada server cadangan.
+  /// Server Overpass publik (kumi.systems kini bernama private.coffee).
+  /// Semuanya dicoba bersamaan; tambahkan mirror lain di sini bila perlu.
   static const List<String> _endpoints = [
     'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter',
   ];
+
+  static const Duration requestTimeout = Duration(seconds: 15);
 
   /// Cache dianggap segar selama 6 jam.
   static const Duration cacheTtl = Duration(hours: 6);
@@ -119,41 +202,40 @@ class PlaceRepository {
   static const int maxResults = 80;
 
   final OverpassFetcher _fetcher;
+  final PlaceFallback? _fallback;
   final PlaceCache _cache;
   final DateTime Function() _now;
 
-  static Future<String> _fetchFromOverpass(String query) async {
-    Object? lastError;
-    for (final endpoint in _endpoints) {
-      final host = Uri.parse(endpoint).host;
-      try {
-        final response = await http
-            .post(
-              Uri.parse(endpoint),
-              headers: kIsWeb
-                  ? null
-                  : {'User-Agent': 'Gerakin/1.0 (student project)'},
-              body: {'data': query},
-            )
-            .timeout(const Duration(seconds: 30));
-        if (response.statusCode == 200) {
-          return utf8.decode(response.bodyBytes);
-        }
-        lastError = 'HTTP ${response.statusCode} dari $host';
-      } catch (e) {
-        lastError = '$host: $e';
-      }
+  static Future<String> _getFrom(String endpoint, String query) async {
+    final uri = Uri.parse(endpoint).replace(queryParameters: {'data': query});
+    final response = await http
+        .get(
+          uri,
+          headers: kIsWeb ? null : {'User-Agent': 'Gerakin/1.0 (student project)'},
+        )
+        .timeout(requestTimeout);
+    if (response.statusCode != 200) {
+      throw Exception('HTTP ${response.statusCode}');
     }
-    throw Exception(lastError ?? 'Overpass tidak dapat dihubungi');
+    final body = utf8.decode(response.bodyBytes);
+    ensureValidOverpassBody(body);
+    return body;
   }
+
+  static Future<String> _fetchFromOverpass(String query) => firstSuccess({
+        for (final endpoint in _endpoints)
+          Uri.parse(endpoint).host: () => _getFrom(endpoint, query),
+      });
 
   /// Query Overpass: gym, taman, dan lapangan/pusat olahraga bernama.
   static String buildQuery(double lat, double lng, int radius) => '''
-[out:json][timeout:25];
+[out:json][timeout:12];
 (
   nwr["leisure"="fitness_centre"]["name"](around:$radius,$lat,$lng);
   nwr["leisure"="park"]["name"](around:$radius,$lat,$lng);
-  nwr["leisure"~"^(pitch|sports_centre|stadium)\$"]["name"](around:$radius,$lat,$lng);
+  nwr["leisure"="pitch"]["name"](around:$radius,$lat,$lng);
+  nwr["leisure"="sports_centre"]["name"](around:$radius,$lat,$lng);
+  nwr["leisure"="stadium"]["name"](around:$radius,$lat,$lng);
 );
 out center $maxResults;
 ''';
@@ -163,8 +245,6 @@ out center $maxResults;
       '${(lat * 100).round()}_${(lng * 100).round()}_$radius';
 
   /// Tempat olahraga di sekitar ([lat], [lng]), diurutkan dari yang terdekat.
-  /// [force] = abaikan cache segar (tombol muat ulang).
-    /// Tempat olahraga di sekitar ([lat], [lng]), diurutkan dari yang terdekat.
   /// [fromLat]/[fromLng] = titik asal perhitungan jarak (bawaan: pusat
   /// pencarian). [force] = abaikan cache segar (tombol muat ulang).
   Future<PlacesResult> nearby(
@@ -183,24 +263,58 @@ out center $maxResults;
     final fresh =
         cached != null && _now().difference(cached.savedAt) < cacheTtl;
     if (fresh && !force) {
-      return PlacesResult(_withDistance(cached.places, oLat, oLng));
+      return PlacesResult(
+        _withDistance(cached.places, oLat, oLng),
+        source: PlacesSource.cache,
+      );
     }
 
+    // 1) Overpass (beberapa server berlomba)
+    Object? overpassError;
     try {
       final body = await _fetcher(buildQuery(lat, lng, radius));
       final places = parseOverpass(body);
-      await _cache.write(key, CachedPlaces(_now(), places));
-      return PlacesResult(_withDistance(places, oLat, oLng));
-    } catch (_) {
-      // Internet gagal: pakai data lama jika ada, jika tidak teruskan error.
-      if (cached != null) {
-        return PlacesResult(
-          _withDistance(cached.places, oLat, oLng),
-          stale: true,
-        );
+      try {
+        await _cache.write(key, CachedPlaces(_now(), places));
+      } catch (_) {
+        // Gagal menyimpan cache tidak boleh membatalkan hasil.
       }
-      rethrow;
+      return PlacesResult(_withDistance(places, oLat, oLng));
+    } catch (e) {
+      overpassError = e;
     }
+
+    // 2) Cadangan (Nominatim). Hasilnya sengaja tidak disimpan di cache supaya
+    //    tidak menghalangi hasil Overpass yang lebih lengkap nanti.
+    Object? fallbackError;
+    final fallback = _fallback;
+    if (fallback != null) {
+      try {
+        final places = await fallback(lat, lng, radius);
+        return PlacesResult(
+          _withDistance(places, oLat, oLng),
+          source: PlacesSource.nominatim,
+        );
+      } catch (e) {
+        fallbackError = e;
+      }
+    }
+
+    // 3) Data lama dari cache
+    if (cached != null) {
+      return PlacesResult(
+        _withDistance(cached.places, oLat, oLng),
+        stale: true,
+        source: PlacesSource.cache,
+      );
+    }
+
+    // 4) Menyerah, dengan pesan yang memuat semua penyebab
+    if (fallback == null) throw overpassError;
+    throw Exception(
+      'Overpass: ${_shortError(overpassError)} | '
+      'Cadangan: ${_shortError(fallbackError ?? 'tidak ada jawaban')}',
+    );
   }
 
   List<Place> _withDistance(List<Place> places, double lat, double lng) {

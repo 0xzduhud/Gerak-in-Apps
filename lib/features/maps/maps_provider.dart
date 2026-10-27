@@ -36,6 +36,7 @@ class MapsProvider extends ChangeNotifier {
   bool _loadingPlaces = false;
   bool _reloadRequested = false;
   bool _stale = false;
+  bool _fromFallback = false;
   String? _placesError;
   String? _placesErrorDetail;
 
@@ -54,6 +55,7 @@ class MapsProvider extends ChangeNotifier {
 
   bool get loadingPlaces => _loadingPlaces;
   bool get stale => _stale;
+  bool get usingFallback => _fromFallback;
   String? get placesError => _placesError;
   String? get placesErrorDetail => _placesErrorDetail;
   PlaceType? get filter => _filter;
@@ -131,6 +133,7 @@ class MapsProvider extends ChangeNotifier {
       }
       _all = result!.places;
       _stale = result.stale;
+      _fromFallback = result.source == PlacesSource.nominatim;
       if (_selected != null && !_all.any((p) => p.id == _selected!.id)) {
         _selected = null;
       }

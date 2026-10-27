@@ -97,10 +97,10 @@ class GeocodingRepository {
   /// Mencari [query]. Jika dipanggil beruntun, permintaan ditunda agar
   /// jaraknya minimal 1 detik (slot dipesan secara sinkron, jadi aman
   /// walau dipanggil bersamaan).
-  Future<List<GeoResult>> search(String query) async {
-    final q = query.trim();
-    if (q.length < minQueryLength) return const [];
-
+  /// Menjalankan [action] dengan jeda minimal 1 detik dari permintaan
+  /// Nominatim sebelumnya (slot dipesan sinkron, jadi aman walau dipanggil
+  /// bersamaan). Dipakai bersama oleh pencarian nama dan pencarian tempat.
+  Future<T> throttled<T>(Future<T> Function() action) async {
     final now = _now();
     final reserved = _nextSlot;
     final slot =
@@ -109,7 +109,13 @@ class GeocodingRepository {
 
     final wait = slot.difference(now);
     if (wait > Duration.zero) await _delay(wait);
+    return action();
+  }
 
-    return parseNominatim(await _fetcher(q));
+  /// Mencari [query] (nama kota/area).
+  Future<List<GeoResult>> search(String query) async {
+    final q = query.trim();
+    if (q.length < minQueryLength) return const [];
+    return throttled(() async => parseNominatim(await _fetcher(q)));
   }
 }
