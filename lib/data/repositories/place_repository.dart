@@ -228,17 +228,30 @@ class PlaceRepository {
       });
 
   /// Query Overpass: gym, taman, dan lapangan/pusat olahraga bernama.
-  static String buildQuery(double lat, double lng, int radius) => '''
+    /// Batas jumlah hasil dari server. Lebih besar dari [maxResults] karena
+  /// Overpass tidak mengurutkan menurut jarak; pemotongan ke 80 terdekat
+  /// dilakukan di aplikasi setelah jarak dihitung.
+  static const int queryLimit = 200;
+
+  /// Query Overpass: gym (termasuk label alternatif), taman, dan lapangan.
+  static String buildQuery(double lat, double lng, int radius) {
+    final around = '(around:$radius,$lat,$lng)';
+    return '''
 [out:json][timeout:12];
 (
-  nwr["leisure"="fitness_centre"]["name"](around:$radius,$lat,$lng);
-  nwr["leisure"="park"]["name"](around:$radius,$lat,$lng);
-  nwr["leisure"="pitch"]["name"](around:$radius,$lat,$lng);
-  nwr["leisure"="sports_centre"]["name"](around:$radius,$lat,$lng);
-  nwr["leisure"="stadium"]["name"](around:$radius,$lat,$lng);
+  nwr["leisure"="fitness_centre"]["name"]$around;
+  nwr["amenity"="gym"]["name"]$around;
+  nwr["sport"~"fitness|bodybuilding|crossfit|yoga|pilates"]["name"]$around;
+  nwr["leisure"="park"]["name"]$around;
+  nwr["leisure"="pitch"]["name"]$around;
+  nwr["leisure"="sports_centre"]["name"]$around;
+  nwr["leisure"="sports_hall"]["name"]$around;
+  nwr["leisure"="stadium"]["name"]$around;
+  nwr["leisure"="track"]["name"]$around;
 );
-out center $maxResults;
+out center $queryLimit;
 ''';
+  }
 
   /// Satu sel cache = kira-kira 1 km x 1 km (pembulatan 0,01 derajat).
   static String cacheKey(double lat, double lng, int radius) =>

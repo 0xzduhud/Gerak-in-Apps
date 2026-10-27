@@ -19,6 +19,9 @@ class MapsProvider extends ChangeNotifier {
   /// Radius dicoba berurutan sampai ada hasil (kota kecil datanya sedikit).
   static const List<int> _radii = [3000, 8000, 15000];
 
+  static bool _isEnough(List<Place> places) =>
+      places.length >= 10 &&
+      places.where((p) => p.type == PlaceType.gym).length >= 3;
   final LocationService _location;
   final PlaceRepository _places;
 
@@ -129,7 +132,7 @@ class MapsProvider extends ChangeNotifier {
           fromLng: user?.lng,
         );
         _radius = radius;
-        if (result.places.isNotEmpty) break;
+        if (_isEnough(result.places)) break;
       }
       _all = result!.places;
       _stale = result.stale;

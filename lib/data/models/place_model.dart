@@ -90,12 +90,30 @@ class Place {
     final name = tags['name']?.toString().trim() ?? '';
     if (name.isEmpty) return null;
 
-    final type = switch (tags['leisure']) {
-      'fitness_centre' => PlaceType.gym,
-      'park' || 'fitness_station' => PlaceType.park,
-      'pitch' || 'sports_centre' || 'stadium' || 'track' => PlaceType.field,
-      _ => null,
-    };
+        final leisure = tags['leisure']?.toString();
+    final sport = tags['sport']?.toString() ?? '';
+    final fitnessSport = RegExp(
+      r'(^|;)(fitness|bodybuilding|crossfit|yoga|pilates)(;|$)',
+    ).hasMatch(sport);
+
+    final PlaceType? type;
+    if (leisure == 'fitness_centre' || tags['amenity'] == 'gym') {
+      type = PlaceType.gym;
+    } else if (leisure == 'park' || leisure == 'fitness_station') {
+      type = PlaceType.park;
+    } else if (leisure == 'sports_centre' && fitnessSport) {
+      type = PlaceType.gym;
+    } else if (leisure == 'pitch' ||
+        leisure == 'sports_centre' ||
+        leisure == 'sports_hall' ||
+        leisure == 'stadium' ||
+        leisure == 'track') {
+      type = PlaceType.field;
+    } else if (leisure == null && fitnessSport) {
+      type = PlaceType.gym;
+    } else {
+      type = null;
+    }
     if (type == null) return null;
 
     double? lat = (e['lat'] as num?)?.toDouble();
