@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../core/utils/timezone_converter.dart';
 import '../../data/models/schedule_model.dart';
 import 'schedule_provider.dart';
+import '../../shared/wheel_time_picker.dart';
 
 // [PBI-12.x] Form tambah/ubah jadwal + pratinjau konversi zona waktu.
 class ScheduleFormScreen extends StatefulWidget {
@@ -54,12 +55,13 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
       initialDate: _date,
       firstDate: DateTime(2024),
       lastDate: DateTime(2035),
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
     );
     if (picked != null) setState(() => _date = picked);
   }
 
   Future<void> _pickTime() async {
-    final picked = await showTimePicker(context: context, initialTime: _time);
+    final picked = await showWheelTimePicker(context: context, initialTime: _time);
     if (picked != null) setState(() => _time = picked);
   }
 

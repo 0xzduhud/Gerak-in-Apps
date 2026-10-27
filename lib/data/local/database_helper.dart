@@ -53,7 +53,6 @@ class DatabaseHelper {
         reps INTEGER NOT NULL DEFAULT 0,
         motion_type TEXT,
         synced INTEGER NOT NULL DEFAULT 0
-        synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute(
@@ -97,7 +96,6 @@ class DatabaseHelper {
         duration_minutes INTEGER NOT NULL,
         calories INTEGER NOT NULL,
         reps INTEGER NOT NULL DEFAULT 50,
-        updated_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         synced INTEGER NOT NULL DEFAULT 0
       )
