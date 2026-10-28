@@ -11,12 +11,17 @@ import '../models/activity_model.dart';
 // ============================================================================
 // [PBI-8.7] DailyTotals — total aktivitas satu hari
 // ============================================================================
+// ============================================================================
+// [PBI-8.7] DailyTotals — total aktivitas satu hari (untuk card Daily Activity)
+// ============================================================================
 class DailyTotals {
   const DailyTotals({
     this.steps = 0,
     this.calories = 0,
     this.distanceMeters = 0,
     this.durationSeconds = 0,
+    this.reps = 0,
+    this.sessions = 0,
   });
 
   final int steps;
@@ -24,29 +29,42 @@ class DailyTotals {
   final double distanceMeters;
   final int durationSeconds;
 
+  /// Total repetisi (sesi repetisi dan Mode Gerakan).
+  final int reps;
+
+  /// Jumlah sesi latihan.
+  final int sessions;
+
   static const DailyTotals empty = DailyTotals();
 
-  factory DailyTotals.from(Iterable<ActivitySummary> items) {
-    var steps = 0;
-    var calories = 0.0;
-    var distance = 0.0;
-    var seconds = 0;
+  
+factory DailyTotals.from(Iterable<ActivitySummary> items) {
+  var steps = 0;
+  var calories = 0.0;
+  var distance = 0.0;
+  var seconds = 0;
+  var reps = 0;
+  var sessions = 0;
 
-    for (final activity in items) {
-      steps += activity.steps;
-      calories += activity.calories;
-      distance += activity.distanceMeters;
-      seconds += activity.durationSeconds;
-    }
-
-    return DailyTotals(
-      steps: steps,
-      calories: calories,
-      distanceMeters: distance,
-      durationSeconds: seconds,
-    );
+  for (final activity in items) {
+    steps += activity.steps;
+    calories += activity.calories;
+    distance += activity.distanceMeters;
+    seconds += activity.durationSeconds;
+    reps += activity.reps;
+    sessions++;
   }
+
+  return DailyTotals(
+    steps: steps,
+    calories: calories,
+    distanceMeters: distance,
+    durationSeconds: seconds,
+    reps: reps,
+    sessions: sessions,
+  );
 }
+
 
 // ============================================================================
 // ActivityStore — antarmuka penyimpanan lokal dan antrean sinkronisasi

@@ -444,6 +444,18 @@ class _PlacesSheet extends StatelessWidget {
                         ),
                       ),
                     ),
+                  if (p.usingFallback)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Server data utama sedang sibuk. Memakai sumber '
+                        'cadangan, jumlah tempat bisa lebih sedikit.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 6),
                 ],
               ),

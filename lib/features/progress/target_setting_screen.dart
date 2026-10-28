@@ -17,6 +17,7 @@ class _TargetSettingScreenState extends State<TargetSettingScreen> {
   late double _steps;
   late double _duration;
   late double _calories;
+  late double _reps;
   bool _saving = false;
 
   @override
@@ -26,15 +27,17 @@ class _TargetSettingScreenState extends State<TargetSettingScreen> {
     _steps = t.steps.toDouble();
     _duration = t.durationMinutes.toDouble();
     _calories = t.calories.toDouble();
+    _reps = t.reps.toDouble();
   }
 
   Future<void> _save() async {
     setState(() => _saving = true);
     final ok = await context.read<ProgressProvider>().saveTarget(
-          DailyTarget(
+            DailyTarget(
             steps: _steps.round(),
             durationMinutes: _duration.round(),
             calories: _calories.round(),
+            reps: _reps.round(),
           ),
         );
     if (!mounted) return;
@@ -52,6 +55,7 @@ class _TargetSettingScreenState extends State<TargetSettingScreen> {
       _steps = DailyTarget.defaultSteps.toDouble();
       _duration = DailyTarget.defaultDurationMinutes.toDouble();
       _calories = DailyTarget.defaultCalories.toDouble();
+      _reps = DailyTarget.defaultReps.toDouble();
     });
   }
 
@@ -69,19 +73,9 @@ class _TargetSettingScreenState extends State<TargetSettingScreen> {
               style: TextStyle(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 20),
-            _TargetSlider(
-              icon: Icons.directions_walk_rounded,
-              label: 'Langkah',
-              valueText: '${_steps.round()} langkah',
-              value: _steps,
-              min: DailyTarget.minSteps.toDouble(),
-              max: DailyTarget.maxSteps.toDouble(),
-              divisions: 58, // kelipatan 500
-              onChanged: (v) => setState(() => _steps = v),
-            ),
-            _TargetSlider(
+              _TargetSlider(
               icon: Icons.timer_rounded,
-              label: 'Durasi aktif',
+              label: 'Durasi latihan',
               valueText: '${_duration.round()} menit',
               value: _duration,
               min: DailyTarget.minDuration.toDouble(),
@@ -98,6 +92,30 @@ class _TargetSettingScreenState extends State<TargetSettingScreen> {
               max: DailyTarget.maxCalories.toDouble(),
               divisions: 39, // kelipatan 50
               onChanged: (v) => setState(() => _calories = v),
+            ),
+            _TargetSlider(
+              icon: Icons.repeat_rounded,
+              label: 'Repetisi (geser ke 0 = tidak dipakai)',
+              valueText: _reps.round() == 0
+                  ? 'Tidak dipakai'
+                  : '${_reps.round()} repetisi',
+              value: _reps,
+              min: DailyTarget.minReps.toDouble(),
+              max: DailyTarget.maxReps.toDouble(),
+              divisions: 100, // kelipatan 10
+              onChanged: (v) => setState(() => _reps = v),
+            ),
+            _TargetSlider(
+              icon: Icons.directions_walk_rounded,
+              label: 'Langkah (geser ke 0 = tidak dipakai)',
+              valueText: _steps.round() == 0
+                  ? 'Tidak dipakai'
+                  : '${_steps.round()} langkah',
+              value: _steps,
+              min: DailyTarget.minSteps.toDouble(),
+              max: DailyTarget.maxSteps.toDouble(),
+              divisions: 60, // kelipatan 500
+              onChanged: (v) => setState(() => _steps = v),
             ),
             const SizedBox(height: 12),
             ElevatedButton.icon(

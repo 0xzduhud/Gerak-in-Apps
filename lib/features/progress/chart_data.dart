@@ -5,19 +5,25 @@ import '../../data/models/activity_model.dart';
 // ============================================================================
 enum ChartRange { weekly, monthly }
 
-enum ChartMetric { steps, duration, calories }
+/// Urutan = urutan chip di layar. Durasi dulu karena berlaku untuk semua jenis
+/// latihan; langkah hanya bermakna untuk kardio.
+enum ChartMetric { duration, reps, calories, steps, sessions }
 
 extension ChartMetricX on ChartMetric {
   String get label => switch (this) {
-        ChartMetric.steps => 'Langkah',
         ChartMetric.duration => 'Durasi',
+        ChartMetric.reps => 'Repetisi',
         ChartMetric.calories => 'Kalori',
+        ChartMetric.steps => 'Langkah',
+        ChartMetric.sessions => 'Sesi',
       };
 
   String get unit => switch (this) {
-        ChartMetric.steps => 'langkah',
         ChartMetric.duration => 'mnt',
+        ChartMetric.reps => 'repetisi',
         ChartMetric.calories => 'kkal',
+        ChartMetric.steps => 'langkah',
+        ChartMetric.sessions => 'sesi',
       };
 }
 
@@ -28,17 +34,23 @@ class DayBucket {
     this.steps = 0,
     this.minutes = 0,
     this.calories = 0,
+    this.reps = 0,
+    this.sessions = 0,
   });
 
   final DateTime date;
   final double steps;
   final double minutes;
   final double calories;
+  final double reps;
+  final double sessions;
 
   double valueOf(ChartMetric metric) => switch (metric) {
-        ChartMetric.steps => steps,
         ChartMetric.duration => minutes,
+        ChartMetric.reps => reps,
         ChartMetric.calories => calories,
+        ChartMetric.steps => steps,
+        ChartMetric.sessions => sessions,
       };
 }
 
@@ -77,6 +89,8 @@ List<DayBucket> buildBuckets(
   final steps = List<double>.filled(window.days, 0);
   final seconds = List<double>.filled(window.days, 0);
   final calories = List<double>.filled(window.days, 0);
+  final reps = List<double>.filled(window.days, 0);
+  final sessions = List<double>.filled(window.days, 0);
 
   final startUtc = DateTime.utc(
     window.start.year,
@@ -94,6 +108,8 @@ List<DayBucket> buildBuckets(
     steps[i] += a.steps;
     seconds[i] += a.durationSeconds;
     calories[i] += a.calories;
+    reps[i] += a.reps;
+    sessions[i] += 1;
   }
 
   return List<DayBucket>.generate(
@@ -103,7 +119,44 @@ List<DayBucket> buildBuckets(
       steps: steps[i],
       minutes: seconds[i] / 60.0,
       calories: calories[i],
+      reps: reps[i],
+      sessions: sessions[i],
     ),
+  );
+}
+
+/// Ringkasan keseluruhan satu rentang (untuk strip di atas grafik).
+class ChartSummary {
+  const ChartSummary({
+    this.sessions = 0,
+    this.minutes = 0,
+    this.calories = 0,
+    this.reps = 0,
+    this.steps = 0,
+  });
+
+  final double sessions;
+  final double minutes;
+  final double calories;
+  final double reps;
+  final double steps;
+}
+
+ChartSummary summarize(Iterable<DayBucket> buckets) {
+  var sessions = 0.0, minutes = 0.0, calories = 0.0, reps = 0.0, steps = 0.0;
+  for (final b in buckets) {
+    sessions += b.sessions;
+    minutes += b.minutes;
+    calories += b.calories;
+    reps += b.reps;
+    steps += b.steps;
+  }
+  return ChartSummary(
+    sessions: sessions,
+    minutes: minutes,
+    calories: calories,
+    reps: reps,
+    steps: steps,
   );
 }
 

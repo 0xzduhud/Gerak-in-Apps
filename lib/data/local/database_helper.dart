@@ -1,16 +1,15 @@
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
-// [PBI-8.6] Database lokal SQLite.
-// [PBI-10.1] Tabel target harian.
-// [PBI-12.x] Tabel jadwal workout.
 class DatabaseHelper {
   DatabaseHelper._();
 
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static const String _dbName = 'gerakin.db';
-  static const int _dbVersion = 4;
+
+  // Versi 6: menggabungkan skema sinkronisasi dan workout.
+  static const int _dbVersion = 6;
 
   static const String tableActivities = 'activities';
   static const String tableTargets = 'targets';
@@ -49,6 +48,8 @@ class DatabaseHelper {
         calories REAL NOT NULL,
         sport_id TEXT,
         server_id TEXT,
+        reps INTEGER NOT NULL DEFAULT 0,
+        motion_type TEXT,
         synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
@@ -59,23 +60,48 @@ class DatabaseHelper {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Nomor versi 2 pernah digunakan oleh dua branch dengan skema
-    // berbeda. Periksa struktur aktual agar migrasi tidak bergantung
-    // pada nomor versi saja.
-    await _ensureActivityServerId(db);
-    await _createActivityIndexes(db);
+    // Pastikan tabel tersedia pada database lama.
     await _createTargets(db);
     await _createSchedules(db);
+
+    // Gabungkan kebutuhan sinkronisasi dan workout.
+    // Pemeriksaan struktur mencegah penambahan kolom ganda,
+    // termasuk pada database yang berasal dari branch berbeda.
+    await _ensureColumn(db, tableActivities, 'server_id', 'TEXT');
+
+    await _ensureColumn(
+      db,
+      tableActivities,
+      'reps',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+
+    await _ensureColumn(db, tableActivities, 'motion_type', 'TEXT');
+
+    await _ensureColumn(
+      db,
+      tableTargets,
+      'reps',
+      'INTEGER NOT NULL DEFAULT 50',
+    );
+
+    await _createActivityIndexes(db);
   }
 
-  Future<void> _ensureActivityServerId(Database db) async {
-    final columns = await db.rawQuery('PRAGMA table_info($tableActivities)');
+  Future<void> _ensureColumn(
+    Database db,
+    String table,
+    String columnName,
+    String columnDefinition,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
 
-    final hasServerId = columns.any((column) => column['name'] == 'server_id');
+    final exists = columns.any((column) => column['name'] == columnName);
 
-    if (!hasServerId) {
+    if (!exists) {
       await db.execute(
-        'ALTER TABLE $tableActivities ADD COLUMN server_id TEXT',
+        'ALTER TABLE $table '
+        'ADD COLUMN $columnName $columnDefinition',
       );
     }
   }
@@ -92,7 +118,7 @@ class DatabaseHelper {
     );
   }
 
-  // [PBI-10.1] Satu baris (id = 1) berisi target harian.
+  // Satu baris (id = 1) menyimpan target harian.
   Future<void> _createTargets(Database db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableTargets (
@@ -100,13 +126,14 @@ class DatabaseHelper {
         steps INTEGER NOT NULL,
         duration_minutes INTEGER NOT NULL,
         calories INTEGER NOT NULL,
+        reps INTEGER NOT NULL DEFAULT 50,
         updated_at TEXT NOT NULL,
         synced INTEGER NOT NULL DEFAULT 0
       )
     ''');
   }
 
-  // [PBI-12.x] start_at menyimpan waktu jadwal.
+  // start_at menyimpan waktu jadwal workout.
   Future<void> _createSchedules(Database db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableSchedules (
@@ -122,4 +149,3 @@ class DatabaseHelper {
     ''');
   }
 }
-// ===================== AKHIR DatabaseHelper =====================

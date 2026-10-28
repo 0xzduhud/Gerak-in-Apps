@@ -70,27 +70,47 @@ class _ProgressView extends StatelessWidget {
                     ],
                     _OverallCard(progress: progress),
                     const SizedBox(height: 16),
-                    _MetricTile(
-                      icon: Icons.directions_walk_rounded,
-                      label: 'Langkah',
-                      metric: progress.steps,
-                      text: '${_n(progress.steps.current)} / '
-                          '${_n(progress.steps.target)} langkah',
-                    ),
-                    _MetricTile(
-                      icon: Icons.timer_rounded,
-                      label: 'Durasi aktif',
-                      metric: progress.duration,
-                      text: '${_n(progress.duration.current)} / '
-                          '${_n(progress.duration.target)} menit',
-                    ),
-                    _MetricTile(
-                      icon: Icons.local_fire_department_rounded,
-                      label: 'Kalori',
-                      metric: progress.calories,
-                      text: '${_n(progress.calories.current)} / '
-                          '${_n(progress.calories.target)} kkal',
-                    ),
+                                        if (progress.activeCount == 0)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          'Belum ada target aktif. Atur target harian untuk '
+                          'melihat progresmu.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ),
+                    if (progress.duration.active)
+                      _MetricTile(
+                        icon: Icons.timer_rounded,
+                        label: 'Durasi latihan',
+                        metric: progress.duration,
+                        text: '${_n(progress.duration.current)} / '
+                            '${_n(progress.duration.target)} menit',
+                      ),
+                    if (progress.calories.active)
+                      _MetricTile(
+                        icon: Icons.local_fire_department_rounded,
+                        label: 'Kalori',
+                        metric: progress.calories,
+                        text: '${_n(progress.calories.current)} / '
+                            '${_n(progress.calories.target)} kkal',
+                      ),
+                    if (progress.reps.active)
+                      _MetricTile(
+                        icon: Icons.repeat_rounded,
+                        label: 'Repetisi',
+                        metric: progress.reps,
+                        text: '${_n(progress.reps.current)} / '
+                            '${_n(progress.reps.target)} repetisi',
+                      ),
+                    if (progress.steps.active)
+                      _MetricTile(
+                        icon: Icons.directions_walk_rounded,
+                        label: 'Langkah',
+                        metric: progress.steps,
+                        text: '${_n(progress.steps.current)} / '
+                            '${_n(progress.steps.target)} langkah',
+                      ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
@@ -172,7 +192,10 @@ class _OverallCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${progress.achievedCount} dari 3 target tercapai',
+                    progress.activeCount == 0
+                      ? 'Belum ada target aktif'
+                      : '${progress.achievedCount} dari '
+                          '${progress.activeCount} target tercapai',
                   style: const TextStyle(color: AppColors.textSecondary),
                 ),
               ],
