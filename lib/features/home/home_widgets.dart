@@ -62,16 +62,7 @@ class HomeHeader extends StatelessWidget {
   }
 }
 
-<<<<<<< HEAD
 // Daily Activity dan indikator progres target harian.
-=======
-// PBI-6.4: kerangka card Daily Activity
-// PBI-6.4: kerangka card Daily Activity
-// PBI-10.8: indikator progres target harian (opsional, tampil jika [progress] ada)
-// PBI-6.4: card Daily Activity — berfokus pada latihan (menit, kalori, repetisi).
-// Langkah dan jarak hanya tampil bila ada (kardio).
-// PBI-10.8: indikator progres target harian (tampil jika ada target aktif).
->>>>>>> origin/sprint-6-13
 class DailyActivityCard extends StatelessWidget {
   const DailyActivityCard({
     super.key,
@@ -106,11 +97,7 @@ class DailyActivityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = progress;
-<<<<<<< HEAD
-
-=======
     final showProgress = p != null && p.activeCount > 0;
->>>>>>> origin/sprint-6-13
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -180,7 +167,7 @@ class DailyActivityCard extends StatelessWidget {
                     p.allAchieved
                         ? 'Target hari ini tercapai!'
                         : '${p.achievedCount} dari ${p.activeCount} '
-                            'target tercapai',
+                              'target tercapai',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

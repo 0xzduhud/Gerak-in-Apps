@@ -37,34 +37,33 @@ class DailyTotals {
 
   static const DailyTotals empty = DailyTotals();
 
-  
-factory DailyTotals.from(Iterable<ActivitySummary> items) {
-  var steps = 0;
-  var calories = 0.0;
-  var distance = 0.0;
-  var seconds = 0;
-  var reps = 0;
-  var sessions = 0;
+  factory DailyTotals.from(Iterable<ActivitySummary> items) {
+    var steps = 0;
+    var calories = 0.0;
+    var distance = 0.0;
+    var seconds = 0;
+    var reps = 0;
+    var sessions = 0;
 
-  for (final activity in items) {
-    steps += activity.steps;
-    calories += activity.calories;
-    distance += activity.distanceMeters;
-    seconds += activity.durationSeconds;
-    reps += activity.reps;
-    sessions++;
+    for (final activity in items) {
+      steps += activity.steps;
+      calories += activity.calories;
+      distance += activity.distanceMeters;
+      seconds += activity.durationSeconds;
+      reps += activity.reps;
+      sessions++;
+    }
+
+    return DailyTotals(
+      steps: steps,
+      calories: calories,
+      distanceMeters: distance,
+      durationSeconds: seconds,
+      reps: reps,
+      sessions: sessions,
+    );
   }
-
-  return DailyTotals(
-    steps: steps,
-    calories: calories,
-    distanceMeters: distance,
-    durationSeconds: seconds,
-    reps: reps,
-    sessions: sessions,
-  );
 }
-
 
 // ============================================================================
 // ActivityStore — antarmuka penyimpanan lokal dan antrean sinkronisasi
