@@ -78,7 +78,6 @@ class CommunityProvider extends ChangeNotifier {
       throw Exception('Silakan login terlebih dahulu.');
     }
 
-    // Cache hanya digunakan jika akun Auth masih sama.
     if (_cachedProfileId != null && _cachedAuthUserId == authUser.id) {
       return _cachedProfileId!;
     }
@@ -132,6 +131,21 @@ class CommunityProvider extends ChangeNotifier {
     return _supabase.auth.currentUser?.userMetadata?['avatar_url']?.toString();
   }
 
+  /// Mengambil profil pengguna berdasarkan ID profil public.users.
+  Future<Map<String, dynamic>> _getProfile(String profileId) async {
+    final profile = await _supabase
+        .from('users')
+        .select('id, full_name, username, photo_url')
+        .eq('id', profileId)
+        .maybeSingle();
+
+    if (profile == null) {
+      throw Exception('Data profil pengguna tidak ditemukan.');
+    }
+
+    return Map<String, dynamic>.from(profile);
+  }
+
   /// Mengambil postingan dan status interaksi dari Supabase.
   Future<void> fetchPosts() async {
     if (isLoading) return;
@@ -181,7 +195,7 @@ class CommunityProvider extends ChangeNotifier {
         }
       }
 
-      // Ambil informasi profil penulis komentar.
+      // Ambil profil penulis komentar.
       final profileNames = <String, Map<String, dynamic>>{};
 
       if (commentUserIds.isNotEmpty) {
@@ -230,8 +244,6 @@ class CommunityProvider extends ChangeNotifier {
           postAuthUserId = userRelation['auth_user_id']?.toString();
         }
 
-        // Pertahankan username untuk kompatibilitas UI lama.
-        // Nama lengkap disimpan terpisah untuk tampilan card.
         if (profileId != null && postUserId == profileId) {
           avatarUrl ??= currentUserAvatar;
         }
@@ -253,7 +265,7 @@ class CommunityProvider extends ChangeNotifier {
             'user_id': commentUserId,
             'username': commentUsername,
             'full_name': commentProfile?['full_name']?.toString() ?? '',
-            'avatar_url': commentProfile?['photo_url']?.toString(),
+            'avatar_url': commentProfile?['photo_url']?.toString() ?? '',
             'comment': comment['content']?.toString() ?? '',
             'created_at': comment['created_at']?.toString(),
           };
@@ -287,7 +299,6 @@ class CommunityProvider extends ChangeNotifier {
       posts = parsedPosts;
 
       // Muat status follow menggunakan ID Auth.
-      // Daftar following tetap berisi ID profil untuk kebutuhan UI.
       following = [];
 
       final authUserId = _supabase.auth.currentUser?.id;
@@ -456,7 +467,7 @@ class CommunityProvider extends ChangeNotifier {
     }
   }
 
-  /// Menambahkan komentar menggunakan ID profil.
+  /// Menambahkan komentar dengan nama lengkap dan foto profil dari tabel users.
   Future<void> addComment(String postId, String comment) async {
     final trimmedComment = comment.trim();
 
@@ -471,6 +482,17 @@ class CommunityProvider extends ChangeNotifier {
     }
 
     final profileId = await getCurrentProfileId();
+
+    // Ambil profil terbaru dari public.users.
+    final profile = await _getProfile(profileId);
+
+    final fullName = profile['full_name']?.toString().trim() ?? '';
+    final profileUsername = profile['username']?.toString().trim() ?? '';
+    final photoUrl = profile['photo_url']?.toString().trim() ?? '';
+
+    final username = profileUsername.isNotEmpty
+        ? profileUsername
+        : currentUsername;
 
     final inserted = await _supabase
         .from('post_comments')
@@ -488,9 +510,9 @@ class CommunityProvider extends ChangeNotifier {
       comments.add(<String, dynamic>{
         'id': inserted['id']?.toString() ?? '',
         'user_id': profileId,
-        'username': currentUsername,
-        'full_name': '',
-        'avatar_url': currentUserAvatar,
+        'username': username,
+        'full_name': fullName,
+        'avatar_url': photoUrl,
         'comment': inserted['content']?.toString() ?? trimmedComment,
         'created_at': inserted['created_at']?.toString(),
       });
@@ -562,7 +584,6 @@ class CommunityProvider extends ChangeNotifier {
       throw Exception('Kamu tidak dapat mengikuti akun sendiri.');
     }
 
-    // Cari akun Auth yang terhubung dengan profil target.
     final targetProfile = await _supabase
         .from('users')
         .select('id, auth_user_id')
