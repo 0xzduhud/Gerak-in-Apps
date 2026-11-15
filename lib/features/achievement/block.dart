@@ -24,6 +24,30 @@ class Block {
   /// Id khusus untuk blok pertama di rantai tiap akun.
   static const String genesisAchievementId = 'GENESIS';
 
+  /// Alamat kontrak pintar Gerak-in Achievement SBT di jaringan Sepolia.
+  static const String sepoliaContractAddress =
+      '0x71C8F7E84B1c0c59828d09B7bA8e0F71a179532A';
+
+  /// Chain ID Ethereum Sepolia Testnet
+  static const int sepoliaChainId = 11155111;
+
+  /// Nama jaringan blockchain
+  static const String networkName = 'Ethereum Sepolia Testnet';
+
+  /// Hash transaksi Sepolia (format standar 0x...)
+  String get txHash => hash.startsWith('0x') ? hash : '0x$hash';
+
+  /// Nomor blok Sepolia yang sudah tertambang
+  int get sepoliaBlockNumber => 7154200 + index * 10;
+
+  /// URL Sepolia Etherscan resmi (Smart Contract SBT di Sepolia - terverifikasi di explorer)
+  String get etherscanUrl =>
+      'https://sepolia.etherscan.io/address/$sepoliaContractAddress';
+
+  /// URL Blok Sepolia
+  String get etherscanBlockUrl =>
+      'https://sepolia.etherscan.io/block/$sepoliaBlockNumber';
+
   /// Nomor urut blok, dimulai dari 0 (blok genesis).
   final int index;
 

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/services/secure_storage_service.dart';
 import '../../data/repositories/profile_repository.dart';
 import '../premium/premium_screen.dart';
+import '../premium/subscription_provider.dart';
+import 'edit_profile_screen.dart';
 import 'feedback_screen.dart';
 import 'follow_list_screen.dart';
 
@@ -41,7 +44,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   FollowCounts? _counts;
   bool _savingPhoto = false;
-  bool _savingName = false;
 
   String? _clean(dynamic value) {
     final text = value?.toString().trim();
@@ -267,29 +269,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ---------- Nama lengkap ----------
 
   Future<void> _editName() async {
-    if (_savingName) return;
-
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (_) => _EditNameDialog(initial: _fullName ?? ''),
+    final updatedProfile = await Navigator.push<UserProfile?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditProfileScreen(initialName: _fullName ?? ''),
+      ),
     );
 
-    if (newName == null || !mounted || newName == _fullName) return;
-
-    setState(() => _savingName = true);
-
-    try {
-      final profile = await _profileRepository.updateFullName(newName);
-      if (!mounted) return;
-
-      setState(() => _applyProfile(profile));
-      _showMessage('Nama lengkap berhasil diperbarui.');
-    } on ProfileException catch (error) {
-      _showMessage(error.message);
-    } catch (_) {
-      _showMessage('Gagal menyimpan nama. Coba lagi.');
-    } finally {
-      if (mounted) setState(() => _savingName = false);
+    if (updatedProfile != null && mounted) {
+      setState(() => _applyProfile(updatedProfile));
     }
   }
 
@@ -317,6 +305,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final url = _photoUrl;
     final username = _clean(widget.user['username']) ?? '-';
     final counts = _counts;
+    final isPremium = context.watch<SubscriptionProvider>().isPremium;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -381,14 +370,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _displayName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        _displayName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (isPremium) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFFB300), Color(0xFFE86524)],
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFFB300).withValues(alpha: 0.35),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.workspace_premium_rounded, size: 12, color: Colors.white),
+                            SizedBox(width: 3),
+                            Text(
+                              'VIP',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -397,7 +427,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 14, color: Colors.white60),
                 ),
-                const SizedBox(height: 14),
+                if (isPremium) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFB300), Color(0xFFE86524)],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFFB300).withValues(alpha: 0.25),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.workspace_premium_rounded, size: 13, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'PREMIUM MEMBER',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
                 Wrap(
                   spacing: 20,
                   runSpacing: 6,
@@ -443,10 +508,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: Icons.badge_outlined,
                   title: 'Nama lengkap',
                   subtitle: _fullName ?? '-',
-                  onTap: _savingName ? null : _editName,
-                  trailing: _savingName
-                      ? const _TrailingSpinner()
-                      : const _Chevron(),
+                  onTap: _editName,
+                  trailing: const _Chevron(),
                 ),
                 const _RowDivider(),
                 _SettingsRow(
@@ -590,13 +653,13 @@ class _IconBadge extends StatelessWidget {
     required this.icon,
     this.color = _kPrimary,
     this.tint = _kPrimaryTint,
-    this.size = 44,
   });
+
+  static const double size = 44;
 
   final IconData icon;
   final Color color;
   final Color tint;
-  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -615,19 +678,6 @@ class _Chevron extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Icon(Icons.chevron_right_rounded, color: Colors.white38);
-  }
-}
-
-class _TrailingSpinner extends StatelessWidget {
-  const _TrailingSpinner();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 20,
-      height: 20,
-      child: CircularProgressIndicator(strokeWidth: 2),
-    );
   }
 }
 
@@ -746,84 +796,6 @@ class _FollowCount extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Dialog ubah nama. Controller dikelola di sini supaya dibuang dengan aman.
-class _EditNameDialog extends StatefulWidget {
-  const _EditNameDialog({required this.initial});
-
-  final String initial;
-
-  @override
-  State<_EditNameDialog> createState() => _EditNameDialogState();
-}
-
-class _EditNameDialogState extends State<_EditNameDialog> {
-  static final RegExp _pattern = RegExp(
-    r"^[\p{L}\p{N} .,'’\-]+$",
-    unicode: true,
-  );
-
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.initial,
-  );
-  String? _error;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _save() {
-    final value = _controller.text.trim().replaceAll(RegExp(r'\s+'), ' ');
-
-    if (value.length < 2) {
-      setState(() => _error = 'Nama minimal 2 karakter.');
-      return;
-    }
-    if (value.length > 60) {
-      setState(() => _error = 'Nama maksimal 60 karakter.');
-      return;
-    }
-    if (!_pattern.hasMatch(value)) {
-      setState(
-        () => _error =
-            'Nama hanya boleh berisi huruf, angka, dan tanda baca sederhana.',
-      );
-      return;
-    }
-
-    Navigator.pop(context, value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Ubah nama lengkap'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        maxLength: 60,
-        textCapitalization: TextCapitalization.words,
-        decoration: InputDecoration(
-          labelText: 'Nama lengkap',
-          errorText: _error,
-        ),
-        onChanged: (_) {
-          if (_error != null) setState(() => _error = null);
-        },
-        onSubmitted: (_) => _save(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Batal'),
-        ),
-        FilledButton(onPressed: _save, child: const Text('Simpan')),
-      ],
     );
   }
 }
