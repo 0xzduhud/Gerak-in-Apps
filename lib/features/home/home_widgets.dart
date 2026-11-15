@@ -84,14 +84,20 @@ class HomeHeader extends StatelessWidget {
 class DailyActivityCard extends StatelessWidget {
   const DailyActivityCard({
     super.key,
-    this.steps = 0,
+    this.durationMinutes = 0,
     this.calories = 0,
+    this.reps = 0,
+    this.sessions = 0,
+    this.steps = 0,
     this.distanceKm = 0,
     this.progress,
   });
 
-  final int steps;
+  final int durationMinutes;
   final int calories;
+  final int reps;
+  final int sessions;
+  final int steps;
   final double distanceKm;
 
   /// Capaian terhadap target harian. null = indikator disembunyikan.

@@ -13,13 +13,23 @@ import '../models/place_model.dart';
 /// Mengirim query Overpass dan mengembalikan isi JSON-nya.
 typedef OverpassFetcher = Future<String> Function(String query);
 
+/// Sumber data tempat olahraga.
+enum PlacesSource { cache, overpass, nominatim, curated }
+
 class PlacesResult {
-  const PlacesResult(this.places, {this.stale = false});
+  const PlacesResult(
+    this.places, {
+    this.stale = false,
+    this.source = PlacesSource.overpass,
+  });
 
   final List<Place> places;
 
   /// true = internet gagal, yang ditampilkan adalah data cadangan/cache.
   final bool stale;
+
+  /// Dari mana data ini berasal.
+  final PlacesSource source;
 }
 
 class CachedPlaces {
@@ -355,7 +365,10 @@ out center $maxResults;
         cached != null && _now().difference(cached.savedAt) < cacheTtl;
     if (fresh && !force && cached.places.isNotEmpty) {
       final merged = _mergeCurated(cached.places);
-      return PlacesResult(_withDistance(merged, oLat, oLng));
+      return PlacesResult(
+        _withDistance(merged, oLat, oLng),
+        source: PlacesSource.cache,
+      );
     }
 
     try {
@@ -363,7 +376,10 @@ out center $maxResults;
       final onlinePlaces = parseOverpass(body);
       final merged = _mergeCurated(onlinePlaces);
       await _cache.write(key, CachedPlaces(_now(), merged));
-      return PlacesResult(_withDistance(merged, oLat, oLng));
+      return PlacesResult(
+        _withDistance(merged, oLat, oLng),
+        source: PlacesSource.overpass,
+      );
     } catch (_) {
       // Jika jaringan Overpass gagal, gabungkan cache atau pakai curated places
       if (cached != null && cached.places.isNotEmpty) {
@@ -371,6 +387,7 @@ out center $maxResults;
         return PlacesResult(
           _withDistance(merged, oLat, oLng),
           stale: true,
+          source: PlacesSource.cache,
         );
       }
 
@@ -378,6 +395,7 @@ out center $maxResults;
       return PlacesResult(
         _withDistance(curatedPlaces, oLat, oLng),
         stale: true,
+        source: PlacesSource.curated,
       );
     }
   }
