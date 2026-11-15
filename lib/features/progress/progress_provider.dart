@@ -11,6 +11,7 @@ class ProgressProvider extends ChangeNotifier {
     TargetRepository? targets,
     ActivityRepository? activities,
     DateTime Function()? now,
+    this.userId,
   })  : _targets = targets ?? TargetRepository(),
         _activities = activities ?? ActivityRepository(),
         _now = now ?? DateTime.now;
@@ -18,6 +19,7 @@ class ProgressProvider extends ChangeNotifier {
   final TargetRepository _targets;
   final ActivityRepository _activities;
   final DateTime Function() _now;
+  final String? userId;
 
   DailyTarget _target = const DailyTarget();
   DailyTotals _today = DailyTotals.empty;
@@ -37,8 +39,8 @@ class ProgressProvider extends ChangeNotifier {
     _error = null;
     _notify();
     try {
-      _target = await _targets.load();
-      _today = await _activities.totalsForDay(_now());
+      _target = await _targets.load(userId: userId);
+      _today = await _activities.totalsForDay(_now(), userId: userId);
     } catch (e) {
       debugPrint('Gagal memuat progress: $e');
       _error = 'Data progres belum bisa dimuat.';
@@ -50,7 +52,7 @@ class ProgressProvider extends ChangeNotifier {
   /// Mengembalikan true jika berhasil disimpan.
   Future<bool> saveTarget(DailyTarget target) async {
     try {
-      _target = await _targets.save(target);
+      _target = await _targets.save(target, userId: userId);
       _notify();
       return true;
     } catch (e) {

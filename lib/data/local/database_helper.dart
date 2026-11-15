@@ -8,8 +8,8 @@ class DatabaseHelper {
 
   static const String _dbName = 'gerakin.db';
 
-  // Versi 6: menggabungkan skema sinkronisasi dan workout.
-  static const int _dbVersion = 6;
+  // Versi 7: menambahkan pemisahan user_id untuk aktivitas dan target per akun.
+  static const int _dbVersion = 7;
 
   static const String tableActivities = 'activities';
   static const String tableTargets = 'targets';
@@ -41,6 +41,7 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE $tableActivities (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
         started_at TEXT NOT NULL,
         duration_seconds INTEGER NOT NULL,
         steps INTEGER NOT NULL,
@@ -65,8 +66,6 @@ class DatabaseHelper {
     await _createSchedules(db);
 
     // Gabungkan kebutuhan sinkronisasi dan workout.
-    // Pemeriksaan struktur mencegah penambahan kolom ganda,
-    // termasuk pada database yang berasal dari branch berbeda.
     await _ensureColumn(db, tableActivities, 'server_id', 'TEXT');
 
     await _ensureColumn(
@@ -84,6 +83,10 @@ class DatabaseHelper {
       'reps',
       'INTEGER NOT NULL DEFAULT 50',
     );
+
+    // Versi 7: kolom user_id agar aktivitas tiap akun terisolasi
+    await _ensureColumn(db, tableActivities, 'user_id', 'TEXT');
+    await _ensureColumn(db, tableTargets, 'user_id', 'TEXT');
 
     await _createActivityIndexes(db);
   }
@@ -113,16 +116,22 @@ class DatabaseHelper {
     );
 
     await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_activities_user_started '
+      'ON $tableActivities (user_id, started_at)',
+    );
+
+    await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_activities_sync '
       'ON $tableActivities (synced)',
     );
   }
 
-  // Satu baris (id = 1) menyimpan target harian.
+  // Menyimpan target harian per akun pengguna (user_id).
   Future<void> _createTargets(Database db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableTargets (
-        id INTEGER PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
         steps INTEGER NOT NULL,
         duration_minutes INTEGER NOT NULL,
         calories INTEGER NOT NULL,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme.dart';
 import '../../data/models/target_model.dart';
@@ -33,8 +34,9 @@ class DailyActivityDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
     return ChangeNotifierProvider<ProgressProvider>(
-      create: (_) => ProgressProvider()..load(),
+      create: (_) => ProgressProvider(userId: uid)..load(),
       child: Consumer<ProgressProvider>(
         builder: (context, p, _) {
           final progress = p.progress;

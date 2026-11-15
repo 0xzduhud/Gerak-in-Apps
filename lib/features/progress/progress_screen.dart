@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme.dart';
 import 'activity_chart.dart';
@@ -11,8 +12,9 @@ class ProgressScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
     return ChangeNotifierProvider<ProgressProvider>(
-      create: (_) => ProgressProvider()..load(),
+      create: (_) => ProgressProvider(userId: uid)..load(),
       child: const _ProgressView(),
     );
   }

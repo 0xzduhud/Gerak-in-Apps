@@ -169,10 +169,11 @@ class AchievementProvider extends ChangeNotifier {
   Future<AchievementStats> _loadStats(String userId) async {
     final now = DateTime.now();
 
-    // ActivityRepository membatasi pembacaan riwayat hingga 400 hari.
+    // ActivityRepository membatasi pembacaan riwayat hingga 400 hari khusus user ini.
     final activities = await _activityRepository.history(
       from: now.subtract(const Duration(days: 399)),
       to: now,
+      userId: userId,
     );
 
     final validWorkouts = activities

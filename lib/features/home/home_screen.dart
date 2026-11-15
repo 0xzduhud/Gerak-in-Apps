@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/services/ai_recommendation_service.dart';
 import '../../core/utils/formatters.dart';
@@ -62,14 +63,30 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  String get _currentUid {
+    final authUser = Supabase.instance.client.auth.currentUser;
+    if (authUser != null && authUser.id.isNotEmpty) {
+      return authUser.id;
+    }
+    return widget.user['auth_user_id']?.toString() ??
+        widget.user['id']?.toString() ??
+        'guest';
+  }
+
   Future<void> _loadToday() async {
     try {
-      final totals = await _activities.totalsForDay(DateTime.now());
+      final totals = await _activities.totalsForDay(
+        DateTime.now(),
+        userId: _currentUid,
+      );
 
       // Kegagalan membaca target tidak boleh menyembunyikan aktivitas.
       TargetProgress? progress;
       try {
-        progress = TargetProgress.from(await _targets.load(), totals);
+        progress = TargetProgress.from(
+          await _targets.load(userId: _currentUid),
+          totals,
+        );
       } catch (error) {
         debugPrint('Gagal memuat target harian: $error');
       }
@@ -77,7 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
 
       debugPrint(
-        'Total hari ini: langkah=${totals.steps} '
+        'Total hari ini ($_currentUid): langkah=${totals.steps} '
         'detik=${totals.durationSeconds} '
         'kkal=${totals.calories.toStringAsFixed(1)}',
       );
