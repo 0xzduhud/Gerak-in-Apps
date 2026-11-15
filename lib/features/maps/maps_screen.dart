@@ -2,23 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/services/location_service.dart';
+import '../../core/services/road_routing_service.dart';
 import '../../core/theme.dart';
 import '../../data/models/place_model.dart';
 import '../../data/repositories/geocoding_repository.dart';
 import 'maps_provider.dart';
 import 'place_detail_screen.dart';
-import 'place_search_delegate.dart';
 import 'place_style.dart';
 
-/// Ganti dengan applicationId aplikasi (lihat android/app/build.gradle).
-/// OpenStreetMap meminta aplikasi mengenalkan dirinya saat mengambil tile.
 const String _userAgentPackage = 'com.example.gerakin';
-
-/// Pusat peta bawaan (Yogyakarta) saat lokasi pengguna belum tersedia.
 const LatLng _defaultCenter = LatLng(-7.7956, 110.3695);
-
 const Color _allColor = Color(0xFF5B6B8C);
 
 class MapsScreen extends StatelessWidget {
@@ -42,6 +38,14 @@ class _MapsView extends StatefulWidget {
 
 class _MapsViewState extends State<_MapsView> {
   final MapController _controller = MapController();
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _cardsScrollController = ScrollController();
+
+  String _searchQuery = '';
+  Place? _routePlace;
+  List<LatLng> _roadRoutePoints = [];
+  bool _isLoadingRoute = false;
+  String? _routeSummary;
 
   @override
   void initState() {
@@ -52,6 +56,8 @@ class _MapsViewState extends State<_MapsView> {
   @override
   void dispose() {
     _controller.dispose();
+    _searchController.dispose();
+    _cardsScrollController.dispose();
     super.dispose();
   }
 
@@ -68,30 +74,130 @@ class _MapsViewState extends State<_MapsView> {
     await provider.locate();
     if (!mounted) return;
     final user = provider.user;
-    if (user != null) _moveTo(user.lat, user.lng, 15);
+    if (user != null) {
+      _moveTo(user.lat, user.lng, 15);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lokasi kamu sekarang ada di tengah peta.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
-  /// [PBI-11.4] Cari nama kota/area lalu muat tempat olahraga di sana.
-  Future<void> _search() async {
-    final provider = context.read<MapsProvider>();
-    final result = await showSearch<GeoResult?>(
-      context: context,
-      delegate: PlaceSearchDelegate(),
-    );
-    if (result == null || !mounted) return;
-    _moveTo(result.lat, result.lng, 14);
-    await provider.searchHere(result);
-  }
-
-  void _focus(Place place) {
+  void _focus(Place place, {int? index}) {
     context.read<MapsProvider>().select(place);
     _moveTo(place.lat, place.lng, 16);
+
+    if (index != null && _cardsScrollController.hasClients) {
+      final targetOffset = index * 296.0;
+      _cardsScrollController.animateTo(
+        targetOffset.clamp(
+          0.0,
+          _cardsScrollController.position.maxScrollExtent,
+        ),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   void _openDetail(Place place) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => PlaceDetailScreen(place: place)),
     );
+  }
+
+  Future<void> _startRoute(Place place) async {
+    setState(() {
+      _routePlace = place;
+      _isLoadingRoute = true;
+      _roadRoutePoints = [];
+      _routeSummary = 'Menghitung rute jalan raya...';
+    });
+
+    final provider = context.read<MapsProvider>();
+    final user = provider.user;
+
+    if (user != null) {
+      final userLatLng = LatLng(user.lat, user.lng);
+      final destLatLng = LatLng(place.lat, place.lng);
+
+      // Panggil OSRM API rute jalan raya sesungguhnya (Revisi 5)
+      final roadResult = await RoadRoutingService.instance.fetchRoadRoute(
+        start: userLatLng,
+        destination: destLatLng,
+      );
+
+      if (!mounted) return;
+
+      if (roadResult != null && roadResult.points.isNotEmpty) {
+        setState(() {
+          _roadRoutePoints = roadResult.points;
+          _isLoadingRoute = false;
+          _routeSummary = '${roadResult.formattedDistance} • ${roadResult.formattedDuration}';
+        });
+
+        final centerLat = (user.lat + place.lat) / 2;
+        final centerLng = (user.lng + place.lng) / 2;
+        _moveTo(centerLat, centerLng, 14);
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isLoadingRoute = false;
+      _roadRoutePoints = [
+        if (user != null) LatLng(user.lat, user.lng),
+        LatLng(place.lat, place.lng),
+      ];
+      _routeSummary = place.distanceMeters != null
+          ? formatDistance(place.distanceMeters!)
+          : 'Petunjuk arah siap';
+    });
+
+    if (user != null) {
+      _moveTo((user.lat + place.lat) / 2, (user.lng + place.lng) / 2, 14);
+    }
+  }
+
+  void _clearRoute() {
+    setState(() {
+      _routePlace = null;
+      _roadRoutePoints = [];
+      _routeSummary = null;
+      _isLoadingRoute = false;
+    });
+  }
+
+  Future<void> _openGoogleMapsRoute(Place place) async {
+    try {
+      await launchUrl(
+        navigationUri(place.lat, place.lng),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tidak dapat membuka aplikasi peta.')),
+        );
+      }
+    }
+  }
+
+  List<Place> _filterPlaces(List<Place> rawPlaces) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return rawPlaces;
+
+    return rawPlaces.where((p) {
+      final name = p.name.toLowerCase();
+      final address = (p.address ?? '').toLowerCase();
+      final type = p.type.label.toLowerCase();
+      return name.contains(query) ||
+          address.contains(query) ||
+          type.contains(query);
+    }).toList();
   }
 
   @override
@@ -103,24 +209,28 @@ class _MapsViewState extends State<_MapsView> {
     final failed = status != null && status != LocationStatus.ok;
     final selected = p.selected;
 
+    final displayedPlaces = _filterPlaces(p.places);
+
     final markers = <Marker>[
-      for (final place in p.places)
+      for (int i = 0; i < displayedPlaces.length; i++) ...[
         Marker(
-          point: LatLng(place.lat, place.lng),
-          width: place.id == selected?.id ? 52 : 34,
-          height: place.id == selected?.id ? 52 : 34,
+          point: LatLng(displayedPlaces[i].lat, displayedPlaces[i].lng),
+          width: displayedPlaces[i].id == selected?.id ? 54 : 36,
+          height: displayedPlaces[i].id == selected?.id ? 54 : 36,
           child: GestureDetector(
-            onTap: () => _focus(place),
+            onTap: () => _focus(displayedPlaces[i], index: i),
             child: Opacity(
-              // Saat ada yang dipilih, tempat lain dibuat lebih pudar.
-              opacity: selected == null || place.id == selected.id ? 1.0 : 0.55,
+              opacity: selected == null || displayedPlaces[i].id == selected.id
+                  ? 1.0
+                  : 0.6,
               child: _PlaceDot(
-                type: place.type,
-                selected: place.id == selected?.id,
+                type: displayedPlaces[i].type,
+                selected: displayedPlaces[i].id == selected?.id,
               ),
             ),
           ),
         ),
+      ],
       if (pin != null)
         Marker(
           point: LatLng(pin.lat, pin.lng),
@@ -142,171 +252,461 @@ class _MapsViewState extends State<_MapsView> {
         ),
     ];
 
-    return Stack(
-      children: [
-        FlutterMap(
-          mapController: _controller,
-          options: const MapOptions(
-            initialCenter: _defaultCenter,
-            initialZoom: 13,
-          ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: _userAgentPackage,
-            ),
-            MarkerLayer(markers: markers),
-          ],
+    // Fitur Rute Jalan Raya (Revisi 5: Mengikuti jalan raya nyata via OSRM)
+    final polylines = <Polyline>[];
+    if (_routePlace != null && _roadRoutePoints.isNotEmpty) {
+      polylines.add(
+        Polyline(
+          points: _roadRoutePoints,
+          color: AppColors.primary,
+          strokeWidth: 5.5,
+          borderColor: Colors.white,
+          borderStrokeWidth: 1.8,
         ),
-        // Atribusi OpenStreetMap (wajib sesuai lisensi data OSM).
-        const Positioned(
-          left: 8,
-          top: 4,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Color(0xCCFFFFFF),
-              borderRadius: BorderRadius.all(Radius.circular(4)),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.neutral,
+      body: Stack(
+        children: [
+          // 1. Peta OpenStreetMap
+          FlutterMap(
+            mapController: _controller,
+            options: const MapOptions(
+              initialCenter: _defaultCenter,
+              initialZoom: 13,
             ),
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              child: Text(
-                '© OpenStreetMap contributors',
-                style: TextStyle(fontSize: 10, color: Colors.black87),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: _userAgentPackage,
+              ),
+              if (polylines.isNotEmpty) PolylineLayer(polylines: polylines),
+              MarkerLayer(markers: markers),
+            ],
+          ),
+
+          // 2. Attribution OSM
+          const Positioned(
+            left: 8,
+            top: 6,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Color(0xCCFFFFFF),
+                borderRadius: BorderRadius.all(Radius.circular(4)),
+              ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Text(
+                  '© OpenStreetMap contributors',
+                  style: TextStyle(fontSize: 10, color: Colors.black87),
+                ),
               ),
             ),
           ),
-        ),
-        // Bar filter jenis tempat
-        const Positioned(
-          left: 8,
-          right: 104,
-          top: 28,
-          child: _FilterBar(),
-        ),
-        // Tombol cari area
-        Positioned(
-          right: 56,
-          top: 28,
-          child: FloatingActionButton.small(
-            heroTag: 'maps_search',
-            onPressed: _search,
-            tooltip: 'Cari kota atau area',
-            child: const Icon(Icons.search_rounded),
-          ),
-        ),
-        // Tombol lokasi saya
-        Positioned(
-          right: 8,
-          top: 28,
-          child: FloatingActionButton.small(
-            heroTag: 'maps_my_location',
-            onPressed: p.locating ? null : _locate,
-            tooltip: 'Lokasi saya',
-            child: p.locating
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
-                  )
-                : const Icon(Icons.my_location_rounded),
-          ),
-        ),
-        // Pesan GPS mati / izin ditolak (PBI-11.10), atau kartu tempat terpilih
-        if (failed && pin == null)
+
+          // 3. Search Bar di atas sendiri & Tombol Refresh (Revisi 12, 14, 18)
           Positioned(
-            left: 12,
-            right: 12,
-            top: 76,
-            child: _StatusBanner(
-              status: status,
-              busy: p.locating,
-              onRetry: _locate,
-              onOpenLocationSettings: p.openLocationSettings,
-              onOpenAppSettings: p.openAppSettings,
+            top: 24,
+            left: 16,
+            right: 16,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    // Search bar inline
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (val) {
+                            setState(() {
+                              _searchQuery = val;
+                            });
+                          },
+                          onSubmitted: (val) async {
+                            if (val.trim().length >= 3) {
+                              try {
+                                final mapsProvider = context.read<MapsProvider>();
+                                final results = await GeocodingRepository.shared
+                                    .search(val.trim());
+                                if (results.isNotEmpty && mounted) {
+                                  final first = results.first;
+                                  _moveTo(first.lat, first.lng, 14);
+                                  await mapsProvider.searchHere(first);
+                                }
+                              } catch (_) {}
+                            }
+                          },
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Cari tempat olahraga...',
+                            hintStyle: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 13.5,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.search,
+                              color: Colors.white38,
+                              size: 20,
+                            ),
+                            suffixIcon: _searchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(
+                                      Icons.clear,
+                                      color: Colors.white38,
+                                      size: 18,
+                                    ),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  )
+                                : null,
+                            filled: true,
+                            fillColor: AppColors.surface,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 0,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: AppColors.outline,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: AppColors.outline,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Tombol refresh di kanan atas (Revisi 14)
+                    Material(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: (p.loadingPlaces || !p.hasCenter)
+                            ? null
+                            : () => p.loadPlaces(force: true),
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.outline),
+                          ),
+                          child: p.loadingPlaces
+                              ? const Center(
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.refresh_rounded,
+                                  color: AppColors.primary,
+                                  size: 22,
+                                ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Di bawah Search Bar: Menu Kategori & Tombol Lokasi Saya (Revisi 12)
+                Row(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _CategoryChip(
+                              label: 'Semua',
+                              selected: p.filter == null,
+                              icon: Icons.apps_rounded,
+                              color: _allColor,
+                              onTap: () => p.setFilter(null),
+                            ),
+                            for (final t in PlaceType.values)
+                              _CategoryChip(
+                                label: t.label,
+                                selected: p.filter == t,
+                                icon: placeIcon(t),
+                                color: placeColor(t),
+                                onTap: () => p.setFilter(t),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Tombol Lokasi Saya di sebelah menu (Revisi 12)
+                    Material(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      elevation: 3,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: p.locating ? null : _locate,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.outline),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.my_location_rounded,
+                                color: AppColors.primary,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'Lokasi Saya',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          )
-        else if (selected != null)
+          ),
+
+          // 4. Banner Rute jika sedang aktif (Revisi 15)
+          if (_routePlace != null)
+            Positioned(
+              left: 16,
+              right: 16,
+              top: 140,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceHigh,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppColors.primary,
+                    width: 1.5,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black45, blurRadius: 10),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.alt_route_rounded,
+                        color: AppColors.neutral,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Rute ke ${_routePlace!.name}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _routeSummary ??
+                                (_routePlace!.distanceMeters != null
+                                    ? 'Jarak: ${formatDistance(_routePlace!.distanceMeters!)}'
+                                    : 'Petunjuk arah siap'),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => _openGoogleMapsRoute(_routePlace!),
+                      child: const Text('Buka Maps'),
+                    ),
+                    IconButton(
+                      tooltip: 'Tutup Rute',
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: _clearRoute,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // 5. Pesan Status jika lokasi gagal
+          if (failed && pin == null)
+            Positioned(
+              left: 16,
+              right: 16,
+              top: 140,
+              child: _StatusBanner(
+                status: status,
+                busy: p.locating,
+                onRetry: _locate,
+                onOpenLocationSettings: p.openLocationSettings,
+                onOpenAppSettings: p.openAppSettings,
+              ),
+            ),
+
+          // 6. Carousel Card Tempat Olahraga Horizontal (Revisi 13)
           Positioned(
-            left: 12,
-            right: 12,
-            top: 76,
-            child: _SelectedCard(
-              place: selected,
-              onDetail: () => _openDetail(selected),
-              onClose: () => p.select(null),
+            left: 0,
+            right: 0,
+            bottom: 16,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (displayedPlaces.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 20, bottom: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.outline),
+                      ),
+                      child: Text(
+                        '${displayedPlaces.length} Tempat Ditemukan • Geser Kanan/Kiri',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.secondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                SizedBox(
+                  height: 185,
+                  child: displayedPlaces.isEmpty
+                      ? Center(
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 20),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.outline),
+                            ),
+                            child: Text(
+                              p.loadingPlaces
+                                  ? 'Sedang mencari tempat olahraga...'
+                                  : 'Tidak ada tempat olahraga yang sesuai.',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _cardsScrollController,
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: displayedPlaces.length,
+                          itemBuilder: (context, index) {
+                            final place = displayedPlaces[index];
+                            final isSelected = place.id == selected?.id;
+
+                            return _HorizontalPlaceCard(
+                              place: place,
+                              isSelected: isSelected,
+                              onTap: () => _focus(place, index: index),
+                              onDetail: () => _openDetail(place),
+                              onRoute: () => _startRoute(place),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
           ),
-        // Panel daftar tempat (PBI-11.5)
-        DraggableScrollableSheet(
-          initialChildSize: 0.3,
-          minChildSize: 0.12,
-          maxChildSize: 0.75,
-          builder: (context, scrollController) => _PlacesSheet(
-            controller: scrollController,
-            onFocus: _focus,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FilterBar extends StatelessWidget {
-  const _FilterBar();
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.watch<MapsProvider>();
-    final ready =
-        p.hasCenter && !p.loadingPlaces && p.placesError == null;
-    String label(String text, PlaceType? type) =>
-        ready ? '$text ${p.countOf(type)}' : text;
-
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _FilterChip(
-            label: label('Semua', null),
-            icon: Icons.apps_rounded,
-            color: _allColor,
-            selected: p.filter == null,
-            onTap: () => p.setFilter(null),
-          ),
-          for (final t in PlaceType.values)
-            _FilterChip(
-              label: label(t.label, t),
-              icon: placeIcon(t),
-              color: placeColor(t),
-              selected: p.filter == t,
-              onTap: () => p.setFilter(t),
-            ),
         ],
       ),
     );
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
     required this.label,
+    required this.selected,
     required this.icon,
     required this.color,
-    required this.selected,
     required this.onTap,
   });
 
   final String label;
+  final bool selected;
   final IconData icon;
   final Color color;
-  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: 6),
       child: Material(
         color: selected ? color : AppColors.surface,
         elevation: 3,
@@ -314,21 +714,28 @@ class _FilterChip extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: selected ? Colors.white : AppColors.outline,
+                width: selected ? 1.5 : 1.0,
+              ),
+            ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  selected ? Icons.check_rounded : icon,
-                  size: 16,
+                  icon,
+                  size: 15,
                   color: selected ? Colors.white : color,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                     color: selected ? Colors.white : AppColors.textPrimary,
                   ),
@@ -342,307 +749,177 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-class _PlacesSheet extends StatelessWidget {
-  const _PlacesSheet({required this.controller, required this.onFocus});
+class _HorizontalPlaceCard extends StatelessWidget {
+  const _HorizontalPlaceCard({
+    required this.place,
+    required this.isSelected,
+    required this.onTap,
+    required this.onDetail,
+    required this.onRoute,
+  });
 
-  final ScrollController controller;
-  final ValueChanged<Place> onFocus;
+  final Place place;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onDetail;
+  final VoidCallback onRoute;
 
   @override
   Widget build(BuildContext context) {
-    final p = context.watch<MapsProvider>();
-    final failed = p.status != null && p.status != LocationStatus.ok;
-    final places = p.places;
-
-    String? message;
-    if (!p.hasCenter) {
-      message = failed
-          ? 'Aktifkan lokasi, atau cari nama kota/area dengan ikon kaca '
-              'pembesar di kanan atas.'
-          : 'Mencari lokasimu...';
-    } else if (p.placesError != null) {
-      message = p.placesError;
-    } else if (!p.loadingPlaces && places.isEmpty) {
-      message = p.filter == null
-          ? 'Tidak ada tempat ditemukan dalam radius ${p.radiusKm} km. '
-              'Data OpenStreetMap di area ini mungkin masih sedikit.'
-          : 'Tidak ada ${p.filter!.label} dalam radius ${p.radiusKm} km. '
-              'Coba pilih "Semua".';
-    }
+    final color = placeColor(place.type);
+    final distance = place.distanceMeters;
 
     return Container(
-      decoration: const BoxDecoration(
+      width: 288,
+      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-        boxShadow: [BoxShadow(color: Colors.black38, blurRadius: 12)],
-      ),
-      child: CustomScrollView(
-        controller: controller,
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 8, 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.outline,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Tempat olahraga terdekat',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              p.placesSummary,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: p.placesError != null
-                                    ? AppColors.tertiary
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Muat ulang',
-                        onPressed: (p.loadingPlaces || !p.hasCenter)
-                            ? null
-                            : () => p.loadPlaces(force: true),
-                        icon: const Icon(Icons.refresh_rounded),
-                      ),
-                    ],
-                  ),
-                  if (p.stale)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 6),
-                      child: Text(
-                        'Tidak ada internet. Menampilkan data dari '
-                        'penyimpanan sementara.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 6),
-                ],
-              ),
-            ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isSelected ? AppColors.primary : AppColors.outline,
+          width: isSelected ? 2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.25)
+                : Colors.black26,
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          if (p.loadingPlaces)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            )
-          else if (message != null)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                child: Column(
-                  children: [
-                    Text(
-                      message,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
-                    if (p.placesErrorDetail != null) ...[
-                      const SizedBox(height: 8),
-                      // Detail teknis: berguna untuk mencari penyebab masalah.
-                      SelectableText(
-                        'Detail: ${p.placesErrorDetail}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.tertiary,
-                        ),
-                      ),
-                    ],
-                    if (p.placesError != null) ...[
-                      const SizedBox(height: 8),
-                      OutlinedButton(
-                        onPressed: () => p.loadPlaces(force: true),
-                        child: const Text('Coba lagi'),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, i) => _PlaceTile(
-                  place: places[i],
-                  selected: places[i].id == p.selected?.id,
-                  onTap: () => onFocus(places[i]),
-                ),
-                childCount: places.length,
-              ),
-            ),
-          const SliverToBoxAdapter(child: SizedBox(height: 16)),
         ],
       ),
-    );
-  }
-}
-
-class _PlaceTile extends StatelessWidget {
-  const _PlaceTile({
-    required this.place,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final Place place;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final distance = place.distanceMeters;
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? placeColor(place.type) : Colors.transparent,
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: placeColor(place.type),
-              child: Icon(placeIcon(place.type), color: Colors.white, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    place.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        placeIcon(place.type),
+                        color: Colors.white,
+                        size: 18,
+                      ),
                     ),
-                  ),
-                  Text(
-                    place.address == null
-                        ? place.type.label
-                        : '${place.type.label} • ${place.address}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            place.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            place.type.label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: color,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            if (distance != null)
-              Text(
-                formatDistance(distance),
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.secondary,
+                    if (distance != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceHigh,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          formatDistance(distance),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.secondary,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SelectedCard extends StatelessWidget {
-  const _SelectedCard({
-    required this.place,
-    required this.onDetail,
-    required this.onClose,
-  });
-
-  final Place place;
-  final VoidCallback onDetail;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final distance = place.distanceMeters;
-    return Material(
-      color: AppColors.surface,
-      elevation: 6,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: placeColor(place.type),
-              child: Icon(placeIcon(place.type), color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    place.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
+                Text(
+                  place.address ?? 'Tersedia di area terdekat',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
                   ),
-                  Text(
-                    distance == null
-                        ? place.type.label
-                        : '${place.type.label} • ${formatDistance(distance)}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(34),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          side: const BorderSide(color: AppColors.outline),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: onDetail,
+                        child: const Text(
+                          'Detail',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.neutral,
+                          minimumSize: const Size.fromHeight(34),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: onRoute,
+                        icon: const Icon(Icons.alt_route_rounded, size: 14),
+                        label: const Text(
+                          'Rute',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            TextButton(onPressed: onDetail, child: const Text('Detail')),
-            IconButton(
-              tooltip: 'Tutup',
-              onPressed: onClose,
-              icon: const Icon(Icons.close_rounded),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -661,7 +938,7 @@ class _PlaceDot extends StatelessWidget {
       decoration: BoxDecoration(
         color: placeColor(type),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: selected ? 4 : 2),
+        border: Border.all(color: Colors.white, width: selected ? 3.5 : 2),
         boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 6)],
       ),
       child: Icon(
@@ -744,7 +1021,10 @@ class _StatusBanner extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.location_off_rounded, color: AppColors.tertiary),
+                const Icon(
+                  Icons.location_off_rounded,
+                  color: AppColors.tertiary,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(

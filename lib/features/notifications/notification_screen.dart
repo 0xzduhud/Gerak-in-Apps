@@ -38,23 +38,50 @@ class _NotificationView extends StatelessWidget {
           p.unreadCount > 0 ? 'Notifikasi (${p.unreadCount})' : 'Notifikasi',
         ),
         actions: [
+          IconButton(
+            tooltip: 'Kirim Notif Demo',
+            icon: const Icon(Icons.notification_add_rounded, color: AppColors.primary),
+            onPressed: () async {
+              await p.sendDemoNotification();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Notifikasi demo berhasil dikirim!'),
+                    backgroundColor: AppColors.primary,
+                  ),
+                );
+              }
+            },
+          ),
           PopupMenuButton<String>(
-            onSelected: (v) {
+            onSelected: (v) async {
+              if (v == 'demo') {
+                await p.sendDemoNotification();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Notifikasi demo berhasil dikirim!'),
+                      backgroundColor: AppColors.primary,
+                    ),
+                  );
+                }
+              }
               if (v == 'read') p.markAllRead();
               if (v == 'clear') p.clearAll();
             },
             itemBuilder: (_) => const [
+              PopupMenuItem(value: 'demo', child: Text('Kirim Notif Demo')),
               PopupMenuItem(value: 'read', child: Text('Tandai semua dibaca')),
               PopupMenuItem(value: 'clear', child: Text('Hapus semua')),
             ],
           ),
         ],
       ),
-      body: _body(p),
+      body: _body(context, p),
     );
   }
 
-  Widget _body(NotificationProvider p) {
+  Widget _body(BuildContext context, NotificationProvider p) {
     if (p.loading) return const Center(child: CircularProgressIndicator());
     if (p.error != null) {
       return Center(
@@ -69,13 +96,34 @@ class _NotificationView extends StatelessWidget {
       );
     }
     if (p.items.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Belum ada notifikasi.\nPengingat jadwal workout akan muncul di sini.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Belum ada notifikasi.\nPengingat jadwal workout akan muncul di sini.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await p.sendDemoNotification();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Notifikasi demo berhasil dikirim!'),
+                        backgroundColor: AppColors.primary,
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.notification_add_rounded),
+                label: const Text('Kirim Notifikasi Demo'),
+              ),
+            ],
           ),
         ),
       );

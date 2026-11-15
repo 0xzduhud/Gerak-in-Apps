@@ -34,7 +34,7 @@ class SportFilter {
 
   List<Sport> apply(List<Sport> source) {
     final q = query.trim().toLowerCase();
-    return source.where((s) {
+    final list = source.where((s) {
       final matchQuery =
           q.isEmpty ||
           s.name.toLowerCase().contains(q) ||
@@ -44,6 +44,16 @@ class SportFilter {
       final matchDifficulty = difficulty == null || s.difficulty == difficulty;
       return matchQuery && matchCategory && matchDifficulty;
     }).toList();
+
+    // 22. Urutan latihan: free di atas, premium di paling bawah
+    list.sort((a, b) {
+      if (a.isPremium != b.isPremium) {
+        return a.isPremium ? 1 : -1;
+      }
+      return a.name.compareTo(b.name);
+    });
+
+    return list;
   }
 }
 

@@ -104,4 +104,27 @@ class NotificationService implements ReminderScheduler {
       );
     }
   }
+
+  /// Menampilkan notifikasi langsung (untuk demo, achievement, atau info pembayaran).
+  Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    if (!supported) return;
+    if (!_ready) await init();
+    try {
+      await ensurePermission();
+      await _plugin.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: _details,
+        payload: payload,
+      );
+    } catch (e) {
+      debugPrint('Gagal menampilkan notifikasi: $e');
+    }
+  }
 }

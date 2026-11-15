@@ -90,7 +90,6 @@ class _ActivityChartSectionState extends State<ActivityChartSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 24),
         const Text(
           'Grafik aktivitas',
           style: TextStyle(

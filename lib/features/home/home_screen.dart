@@ -175,7 +175,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ? null
           : AppBar(
               title: Text(
-                _selectedIndex == 4 ? 'Profile' : 'Gerak-in',
+                _selectedIndex == 1
+                    ? 'Maps'
+                    : _selectedIndex == 2
+                        ? 'Workout'
+                        : _selectedIndex == 4
+                            ? 'Profile'
+                            : 'Gerak-in',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),

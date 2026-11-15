@@ -54,6 +54,77 @@ class _AchievementContent extends StatelessWidget {
       ),
       body: Consumer<AchievementProvider>(
         builder: (context, provider, _) {
+          if (provider.newlyUnlocked.isNotEmpty) {
+            final newly = List.of(provider.newlyUnlocked);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              provider.clearNewlyUnlocked();
+              showDialog<void>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: const Color(0xFF221C1B),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: const BorderSide(color: Colors.amber),
+                  ),
+                  icon: const Icon(
+                    Icons.emoji_events_rounded,
+                    color: Colors.amber,
+                    size: 52,
+                  ),
+                  title: const Text(
+                    'Achievement Terbuka! 🏆',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final a in newly)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            '• ${a.title}',
+                            style: const TextStyle(
+                              color: Colors.amberAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Pencapaian berhasil divalidasi dan dicatat permanen di jaringan Ethereum Sepolia Testnet.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.amber.shade800,
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text(
+                          'Mantap!',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            });
+          }
+
           if (provider.isLoading && provider.blocks.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -307,10 +378,17 @@ class _BlockchainCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Icon(
-                isValid ? Icons.verified_user_rounded : Icons.shield_outlined,
-                color: color,
-                size: 30,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.token_rounded,
+                  color: Colors.blueAccent,
+                  size: 26,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -318,19 +396,23 @@ class _BlockchainCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Blockchain Achievement',
+                      'Ethereum Sepolia Blockchain',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       isValid
-                          ? 'Rantai valid · $blockCount blok'
+                          ? 'Sepolia Testnet · $blockCount Blok Tervalidasi'
                           : 'Belum terverifikasi · $blockCount blok',
-                      style: TextStyle(color: color, fontSize: 12),
+                      style: TextStyle(
+                        color: isValid ? Colors.greenAccent : color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Ketuk untuk melihat detail blok',
+                      'Smart contract SBT · Ketuk untuk explorer',
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -350,7 +432,7 @@ class _BlockchainCard extends StatelessWidget {
                     SnackBar(
                       content: Text(
                         valid
-                            ? 'Blockchain valid.'
+                            ? 'Ethereum Sepolia Blockchain valid & tersinkronisasi.'
                             : 'Blockchain belum valid atau gagal diverifikasi.',
                       ),
                     ),

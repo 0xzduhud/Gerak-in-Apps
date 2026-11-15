@@ -136,18 +136,19 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.directions_run_rounded,
-              size: 76,
-              color: AppColors.primary,
+            Image.asset(
+              'assets/images/gerakin_logo.png',
+              width: 100,
+              height: 100,
+              fit: BoxFit.contain,
             ),
-            SizedBox(height: 20),
-            Text(
+            const SizedBox(height: 20),
+            const Text(
               'Gerak-in',
               style: TextStyle(
                 fontSize: 32,
@@ -155,10 +156,13 @@ class _SplashScreenState extends State<SplashScreen> {
                 color: AppColors.textPrimary,
               ),
             ),
-            SizedBox(height: 8),
-            Text('Mulai bergerak, jaga kesehatan.'),
-            SizedBox(height: 24),
-            CircularProgressIndicator(color: AppColors.primary),
+            const SizedBox(height: 8),
+            const Text(
+              'Mulai bergerak, jaga kesehatan.',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 24),
+            const CircularProgressIndicator(color: AppColors.primary),
           ],
         ),
       ),

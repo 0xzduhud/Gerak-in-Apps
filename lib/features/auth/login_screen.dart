@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/services/biometric_service.dart';
 import '../../core/services/secure_storage_service.dart';
+import '../../core/theme.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../home/home_screen.dart';
 import 'register_screen.dart';
@@ -264,8 +265,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const green = Color(0xFF16856B);
-
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -276,10 +275,13 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(
-                    Icons.directions_run_rounded,
-                    size: 76,
-                    color: green,
+                  Center(
+                    child: Image.asset(
+                      'assets/images/gerakin_logo.png',
+                      width: 90,
+                      height: 90,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   const Text(
@@ -288,13 +290,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
-                      color: green,
+                      color: AppColors.primary,
                     ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
                     'Mulai bergerak, jaga kesehatan.',
                     textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 36),
                   const Text(
@@ -357,7 +360,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   FilledButton(
                     onPressed: _loading ? null : _login,
                     style: FilledButton.styleFrom(
-                      backgroundColor: green,
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.neutral,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                     child: _loading
@@ -369,7 +373,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Masuk'),
+                        : const Text(
+                            'Masuk',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                   Align(
                     alignment: Alignment.centerRight,
@@ -391,9 +401,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       icon: const Icon(Icons.fingerprint, size: 28),
                       label: const Text('Masuk dengan Biometrik'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: green,
+                        foregroundColor: AppColors.primary,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: const BorderSide(color: green),
+                        side: const BorderSide(color: AppColors.primary),
                       ),
                     ),
                   const SizedBox(height: 12),

@@ -135,7 +135,7 @@ class _FollowListScreenState extends State<FollowListScreen> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: _users.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, __) => const SizedBox(height: 4),
       itemBuilder: (context, index) {
         final user = _users[index];
         final initial = user.displayName.isEmpty

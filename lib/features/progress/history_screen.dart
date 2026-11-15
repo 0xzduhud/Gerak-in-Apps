@@ -130,7 +130,6 @@ class _HistorySectionState extends State<HistorySection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 24),
         Row(
           children: [
             const Expanded(
