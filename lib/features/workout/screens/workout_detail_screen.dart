@@ -9,6 +9,7 @@ import '../session_spec.dart';
 import '../workout_provider.dart';
 import 'guided_session_screen.dart';
 import 'workout_session_screen.dart';
+import '../../schedule/schedule_form_screen.dart';
 
 String _fmtKcal(double v) => v.toStringAsFixed(v % 1 == 0 ? 0 : 1);
 
@@ -339,6 +340,16 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
             onPressed: _startSession,
             icon: const Icon(Icons.play_arrow_rounded),
             label: const Text('Mulai latihan'),
+          ) ,
+                    const SizedBox(height: 10),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+            ),
+            onPressed: () =>
+                ScheduleFormScreen.openNew(context, title: sport.name),
+            icon: const Icon(Icons.event_available_rounded),
+            label: const Text('Jadwalkan latihan ini'),
           ),
           if (cardio) ...[
             const SizedBox(height: 10),

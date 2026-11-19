@@ -91,6 +91,34 @@ void main() {
       expect(TimezoneConverter.byCode(null).code, 'WIB');
     });
 
+    test('kalimat hasil dan selisih zona', () {
+      final wall = DateTime(2026, 11, 3, 19, 0);
+      expect(
+        TimezoneConverter.resultSentence(
+            wall, TimezoneConverter.wib, TimezoneConverter.wita),
+        '19:00 WIB = 20:00 WITA',
+      );
+      expect(
+        TimezoneConverter.resultSentence(DateTime(2026, 11, 3, 23, 0),
+            TimezoneConverter.wib, TimezoneConverter.wit),
+        '23:00 WIB = 01:00 WIT (+1 hari)',
+      );
+      expect(
+        TimezoneConverter.differenceSentence(
+            TimezoneConverter.wib, TimezoneConverter.wita),
+        'WITA lebih cepat 1 jam dari WIB',
+      );
+      expect(
+        TimezoneConverter.differenceSentence(
+            TimezoneConverter.wit, TimezoneConverter.wib),
+        'WIB lebih lambat 2 jam dari WIT',
+      );
+      expect(
+        TimezoneConverter.differenceSentence(
+            TimezoneConverter.wib, TimezoneConverter.wib),
+        'WIB dan WIB memakai jam yang sama',
+      );
+    });
     test('format waktu dan tanggal', () {
       expect(TimezoneConverter.formatTime(DateTime(2026, 1, 1, 5, 3)), '05:03');
       expect(
