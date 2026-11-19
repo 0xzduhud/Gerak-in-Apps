@@ -18,6 +18,7 @@ import '../progress/progress_screen.dart';
 import '../schedule/schedule_screen.dart';
 import '../workout/screens/workout_list_screen.dart';
 import 'home_widgets.dart';
+import '../timeconverter/time_converter_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -272,6 +273,11 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.calendar_month_rounded,
               label: 'Schedule',
               onTap: () => _open(const ScheduleScreen()),
+            ),
+            HomeMenuItem(
+              icon: Icons.public_rounded,
+              label: 'Konversi Waktu',
+              onTap: () => _open(const TimeConverterScreen()),
             ),
             HomeMenuItem(
               icon: Icons.sports_esports_rounded,

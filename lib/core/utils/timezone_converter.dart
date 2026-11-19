@@ -97,4 +97,29 @@ class TimezoneConverter {
     if (shift == 0) return '';
     return shift > 0 ? '+$shift hari' : '$shift hari';
   }
+    /// Selisih jam [to] terhadap [from], mis. WITA vs WIB = +1.
+  static int hourDifference(AppTimeZone from, AppTimeZone to) =>
+      to.offsetHours - from.offsetHours;
+
+  /// Kalimat penjelas selisih zona, mis. "WITA lebih cepat 1 jam dari WIB".
+  static String differenceSentence(AppTimeZone from, AppTimeZone to) {
+    final d = hourDifference(from, to);
+    if (d == 0) return '${to.code} dan ${from.code} memakai jam yang sama';
+    final n = d.abs();
+    return d > 0
+        ? '${to.code} lebih cepat $n jam dari ${from.code}'
+        : '${to.code} lebih lambat $n jam dari ${from.code}';
+  }
+
+  /// Kalimat hasil konversi, mis. "19:00 WIB = 20:00 WITA".
+  static String resultSentence(
+    DateTime wall,
+    AppTimeZone from,
+    AppTimeZone to,
+  ) {
+    final c = convert(wall, from, to);
+    final shift = dayShiftLabel(c.dayShift);
+    return '${formatTime(wall)} ${from.code} = ${formatTime(c.time)} ${to.code}'
+        '${shift.isEmpty ? '' : ' ($shift)'}';
+  }
 }
