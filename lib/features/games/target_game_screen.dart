@@ -23,18 +23,119 @@ class TargetGameScreen extends StatelessWidget {
   }
 }
 
-class _TargetGameView extends StatelessWidget {
+class _TargetGameView extends StatefulWidget {
   const _TargetGameView();
 
+  @override
+  State<_TargetGameView> createState() => _TargetGameViewState();
+}
+
+class _TargetGameViewState extends State<_TargetGameView> {
   static const Color _bgColor = Color(0xFF171312);
   static const Color _cardColor = Color(0xFF1E1E1E);
   static const Color _cardBorderColor = Color(0xFF2C2C2C);
   static const Color _primaryOrange = Color(0xFFE86524);
   static const double _targetSize = 64;
 
+  bool _popupShown = false;
+  bool _dialogInProgress = false;
+
+  void _checkGameOverPopup(TargetGameProvider p) {
+    if (p.isGameOver && !_popupShown && !_dialogInProgress) {
+      _dialogInProgress = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogCtx) => AlertDialog(
+            backgroundColor: const Color(0xFF221C1B),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+              side: BorderSide(color: _primaryOrange.withValues(alpha: 0.5)),
+            ),
+            icon: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _primaryOrange.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.sports_esports_rounded,
+                color: _primaryOrange,
+                size: 48,
+              ),
+            ),
+            title: const Text(
+              'Permainan Selesai!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Skor Akhir: ${p.score}\nLevel Tertinggi: ${p.level}\nTotal Makanan Sehat: ${p.caught}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 15,
+                    height: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Bagus sekali! Ketuk tombol di bawah untuk melihat rincian hasil dan menyimpan skormu.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white54, fontSize: 13),
+                ),
+              ],
+            ),
+            actions: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primaryOrange,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () {
+                    Navigator.of(dialogCtx).pop();
+                    if (mounted) {
+                      setState(() {
+                        _popupShown = true;
+                        _dialogInProgress = false;
+                      });
+                    }
+                  },
+                  child: const Text(
+                    'Lihat Hasil',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.watch<TargetGameProvider>();
+    _checkGameOverPopup(p);
 
     // Setelah game selesai, pemain wajib menggoyang HP dulu (tidak bisa back).
     return PopScope(
@@ -46,7 +147,7 @@ class _TargetGameView extends StatelessWidget {
           elevation: 0,
           centerTitle: true,
           automaticallyImplyLeading: false,
-          leading: p.isGameOver
+          leading: (p.isGameOver && _popupShown)
               ? null
               : IconButton(
                   icon: const Icon(
@@ -66,7 +167,7 @@ class _TargetGameView extends StatelessWidget {
           ),
         ),
         body: SafeArea(
-          child: p.isGameOver
+          child: (p.isGameOver && _popupShown)
               ? _buildResult(context, p)
               : _buildPlay(context, p),
         ),
@@ -135,46 +236,55 @@ class _TargetGameView extends StatelessWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(18),
-                child: LayoutBuilder(
-                  builder: (context, box) {
-                    final maxLeft = max(0.0, box.maxWidth - _targetSize);
-                    final maxTop = max(0.0, box.maxHeight - _targetSize);
-                    return Stack(
-                      children: [
-                        for (final t in p.targets)
-                          Positioned(
-                            key: ValueKey(t.id),
-                            left: t.dx * maxLeft,
-                            top: t.dy * maxTop,
-                            child: _TargetBubble(
-                              emoji: t.emoji,
-                              size: _targetSize,
-                              onTap: () {
-                                final kind = p.tap(t.id);
-                                if (kind == TargetKind.healthy) {
-                                  HapticFeedback.selectionClick();
-                                } else if (kind != null) {
-                                  HapticFeedback.heavyImpact();
-                                }
-                              },
-                            ),
-                          ),
-                        if (p.isEnding)
-                          Container(
-                            color: Colors.black54,
-                            alignment: Alignment.center,
-                            child: const Text(
-                              'Nyawa habis!',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (_) {
+                    // Getar jika pemain menyentuh area kosong (meleset/salah)
+                    HapticFeedback.vibrate();
+                  },
+                  child: LayoutBuilder(
+                    builder: (context, box) {
+                      final maxLeft = max(0.0, box.maxWidth - _targetSize);
+                      final maxTop = max(0.0, box.maxHeight - _targetSize);
+                      return Stack(
+                        children: [
+                          for (final t in p.targets)
+                            Positioned(
+                              key: ValueKey(t.id),
+                              left: t.dx * maxLeft,
+                              top: t.dy * maxTop,
+                              child: _TargetBubble(
+                                emoji: t.emoji,
+                                size: _targetSize,
+                                onTap: () {
+                                  final kind = p.tap(t.id);
+                                  if (kind == TargetKind.healthy) {
+                                    HapticFeedback.selectionClick();
+                                  } else if (kind != null) {
+                                    // Getar saat salah menyentuh junk food atau bom
+                                    HapticFeedback.vibrate();
+                                    HapticFeedback.heavyImpact();
+                                  }
+                                },
                               ),
                             ),
-                          ),
-                      ],
-                    );
-                  },
+                          if (p.isEnding)
+                            Container(
+                              color: Colors.black54,
+                              alignment: Alignment.center,
+                              child: const Text(
+                                'Nyawa habis!',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),

@@ -7,6 +7,7 @@ import '../../../data/repositories/sport_repository.dart';
 import '../../premium/premium_screen.dart';
 import '../../premium/subscription_provider.dart';
 import '../widgets/sport_card.dart';
+import 'ai_equipment_scanner_screen.dart';
 import 'workout_detail_screen.dart';
 import '../workout_provider.dart';
 
@@ -38,6 +39,7 @@ class _WorkoutListView extends StatefulWidget {
 
 class _WorkoutListViewState extends State<_WorkoutListView> {
   final TextEditingController _searchController = TextEditingController();
+  bool _isBannerDismissed = false;
 
   @override
   void dispose() {
@@ -53,6 +55,96 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
   void _openPremium() {
     Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => const PremiumScreen()));
+  }
+
+  void _showDifficultyFilter(BuildContext context, WorkoutProvider provider) {
+    final current = provider.filter.difficulty;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.outline,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    const Text(
+                      'Tingkat Kesulitan',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (current != null)
+                      TextButton(
+                        onPressed: () {
+                          provider.setDifficulty(null);
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('Reset'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  tileColor: current == null
+                      ? AppColors.surfaceHigh
+                      : Colors.transparent,
+                  title: const Text('Semua Tingkat Kesulitan'),
+                  trailing: current == null
+                      ? const Icon(Icons.check_rounded, color: AppColors.primary)
+                      : null,
+                  onTap: () {
+                    provider.setDifficulty(null);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                for (final d in Difficulty.values)
+                  ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    tileColor: current == d
+                        ? AppColors.surfaceHigh
+                        : Colors.transparent,
+                    title: Text(d.label),
+                    trailing: current == d
+                        ? const Icon(Icons.check_rounded, color: AppColors.primary)
+                        : null,
+                    onTap: () {
+                      provider.setDifficulty(d);
+                      Navigator.pop(ctx);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   /// PBI-19.5: latihan premium hanya bisa dibuka pelanggan Plus.
@@ -179,11 +271,11 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
     );
   }
 
-  /// Banner jumlah latihan terkunci, khusus pengguna Free.
+  /// Banner jumlah latihan terkunci, khusus pengguna Free dengan tombol silang (Revisi 21).
   Widget _buildUpgradeBanner(int lockedCount) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
@@ -195,8 +287,7 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '$lockedCount latihan di daftar ini terkunci. '
-              'Berlangganan FitMate Plus untuk membukanya.',
+              '$lockedCount latihan terkunci. Berlangganan FitMate Plus untuk membukanya.',
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 13,
@@ -205,6 +296,15 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
             ),
           ),
           TextButton(onPressed: _openPremium, child: const Text('Lihat')),
+          IconButton(
+            tooltip: 'Tutup Peringatan',
+            icon: const Icon(Icons.close_rounded, size: 18),
+            onPressed: () {
+              setState(() {
+                _isBannerDismissed = true;
+              });
+            },
+          ),
         ],
       ),
     );
@@ -259,6 +359,11 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
         : sports.where((sport) => sport.isPremium).length;
 
     return [
+      // Peringatan latihan terkunci dengan tombol silang di kanan atas (Revisi 21)
+      if (lockedCount > 0 && !_isBannerDismissed)
+        _buildUpgradeBanner(lockedCount),
+
+      // Tulisan 22 latihan berada di bawah peringatan (Revisi 21)
       Row(
         children: [
           Text(
@@ -273,8 +378,8 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
             TextButton(onPressed: _resetFilter, child: const Text('Reset')),
         ],
       ),
-      const SizedBox(height: 4),
-      if (lockedCount > 0) _buildUpgradeBanner(lockedCount),
+      const SizedBox(height: 8),
+
       if (sports.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 40),
@@ -327,39 +432,130 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
-          const Text(
-            'Workout',
-            style: TextStyle(
-              fontSize: 27,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Cari dan pilih latihan yang sesuai targetmu.',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _searchController,
-            onChanged: provider.setQuery,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: 'Cari nama, otot, atau alat',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: filter.query.isEmpty
-                  ? null
-                  : IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () {
-                        _searchController.clear();
-                        provider.setQuery('');
-                      },
+          // Searchbar (bentuk disamakan komunitas) + Tombol Filter + Kamera AI (Revisi 18, 19, 20)
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: provider.setQuery,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Cari nama, otot, atau alat...',
+                      hintStyle: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 13.5,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: Colors.white38,
+                        size: 20,
+                      ),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.clear,
+                                color: Colors.white38,
+                                size: 18,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                provider.setQuery('');
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 0,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.outline),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.outline),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.primary),
+                      ),
                     ),
-            ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Tombol Filter Kesulitan (Revisi 19)
+              Material(
+                color: filter.difficulty != null
+                    ? AppColors.primary
+                    : AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _showDifficultyFilter(context, provider),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: filter.difficulty != null
+                            ? AppColors.primary
+                            : AppColors.outline,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.tune_rounded,
+                      color: filter.difficulty != null
+                          ? AppColors.neutral
+                          : AppColors.primary,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Tombol Kamera AI (Revisi 20)
+              Material(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const AiEquipmentScannerScreen(),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.outline),
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_rounded,
+                      color: AppColors.secondary,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
+
+          // Kelompok Otot (Tingkat kesulitan di bawahnya sudah dihapus dan dijadikan tombol filter)
           _sectionLabel('Kelompok otot'),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -372,26 +568,6 @@ class _WorkoutListViewState extends State<_WorkoutListView> {
                 ),
                 for (final c in provider.categories)
                   _chip(c, filter.category == c, () => provider.setCategory(c)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _sectionLabel('Tingkat kesulitan'),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _chip(
-                  'Semua',
-                  filter.difficulty == null,
-                  () => provider.setDifficulty(null),
-                ),
-                for (final d in Difficulty.values)
-                  _chip(
-                    d.label,
-                    filter.difficulty == d,
-                    () => provider.setDifficulty(d),
-                  ),
               ],
             ),
           ),

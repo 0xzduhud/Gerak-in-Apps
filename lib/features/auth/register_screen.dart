@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../home/home_screen.dart';
 import 'login_screen.dart';
@@ -52,7 +53,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         icon: const Icon(
           Icons.mark_email_unread_outlined,
           size: 48,
-          color: Color(0xFF16856B),
+          color: AppColors.primary,
         ),
         title: const Text('Periksa email kamu'),
         content: Text(
@@ -155,8 +156,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const green = Color(0xFF16856B);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Buat Akun')),
       body: SafeArea(
@@ -168,16 +167,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(
-                    Icons.person_add_alt_1_rounded,
-                    size: 64,
-                    color: green,
+                  Center(
+                    child: Image.asset(
+                      'assets/images/gerakin_logo.png',
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   const Text(
                     'Gabung dengan Gerak-in',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   TextFormField(
@@ -294,7 +300,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   FilledButton(
                     onPressed: _loading ? null : _register,
                     style: FilledButton.styleFrom(
-                      backgroundColor: green,
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.neutral,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                     child: _loading
@@ -306,7 +313,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Daftar'),
+                        : const Text(
+                            'Daftar',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                   const SizedBox(height: 8),
                   TextButton(

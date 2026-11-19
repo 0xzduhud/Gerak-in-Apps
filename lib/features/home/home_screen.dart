@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/services/ai_recommendation_service.dart';
 import '../../core/utils/formatters.dart';
@@ -18,6 +19,7 @@ import '../progress/progress_screen.dart';
 import '../schedule/schedule_screen.dart';
 import '../workout/screens/workout_list_screen.dart';
 import 'home_widgets.dart';
+import '../timeconverter/time_converter_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -62,14 +64,30 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  String get _currentUid {
+    final authUser = Supabase.instance.client.auth.currentUser;
+    if (authUser != null && authUser.id.isNotEmpty) {
+      return authUser.id;
+    }
+    return widget.user['auth_user_id']?.toString() ??
+        widget.user['id']?.toString() ??
+        'guest';
+  }
+
   Future<void> _loadToday() async {
     try {
-      final totals = await _activities.totalsForDay(DateTime.now());
+      final totals = await _activities.totalsForDay(
+        DateTime.now(),
+        userId: _currentUid,
+      );
 
       // Kegagalan membaca target tidak boleh menyembunyikan aktivitas.
       TargetProgress? progress;
       try {
-        progress = TargetProgress.from(await _targets.load(), totals);
+        progress = TargetProgress.from(
+          await _targets.load(userId: _currentUid),
+          totals,
+        );
       } catch (error) {
         debugPrint('Gagal memuat target harian: $error');
       }
@@ -77,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
 
       debugPrint(
-        'Total hari ini: langkah=${totals.steps} '
+        'Total hari ini ($_currentUid): langkah=${totals.steps} '
         'detik=${totals.durationSeconds} '
         'kkal=${totals.calories.toStringAsFixed(1)}',
       );
@@ -175,7 +193,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ? null
           : AppBar(
               title: Text(
-                _selectedIndex == 4 ? 'Profile' : 'Gerak-in',
+                _selectedIndex == 1
+                    ? 'Maps'
+                    : _selectedIndex == 2
+                        ? 'Workout'
+                        : _selectedIndex == 4
+                            ? 'Profile'
+                            : 'Gerak-in',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -272,6 +296,11 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.calendar_month_rounded,
               label: 'Schedule',
               onTap: () => _open(const ScheduleScreen()),
+            ),
+            HomeMenuItem(
+              icon: Icons.public_rounded,
+              label: 'Konversi Waktu',
+              onTap: () => _open(const TimeConverterScreen()),
             ),
             HomeMenuItem(
               icon: Icons.sports_esports_rounded,

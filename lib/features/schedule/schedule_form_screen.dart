@@ -9,9 +9,39 @@ import '../../shared/wheel_time_picker.dart';
 
 // [PBI-12.x] Form tambah/ubah jadwal + pratinjau konversi zona waktu.
 class ScheduleFormScreen extends StatefulWidget {
-  const ScheduleFormScreen({super.key, this.initial});
+  const ScheduleFormScreen({
+    super.key,
+    this.initial,
+    this.prefillTitle,
+    this.prefillStart,
+    this.prefillZone,
+  });
 
   final WorkoutSchedule? initial;
+  final String? prefillTitle;
+  final DateTime? prefillStart;
+  final AppTimeZone? prefillZone;
+
+  /// Buka form jadwal baru dari mana saja (Workout, Konversi Waktu).
+  static Future<void> openNew(
+    BuildContext context, {
+    String? title,
+    DateTime? startAt,
+    AppTimeZone? zone,
+  }) {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChangeNotifierProvider<ScheduleProvider>(
+          create: (_) => ScheduleProvider()..load(),
+          child: ScheduleFormScreen(
+            prefillTitle: title,
+            prefillStart: startAt,
+            prefillZone: zone,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   State<ScheduleFormScreen> createState() => _ScheduleFormScreenState();
@@ -30,12 +60,16 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
   void initState() {
     super.initState();
     final s = widget.initial;
-    final base = s?.startAt ?? DateTime.now().add(const Duration(hours: 1));
-    _title = TextEditingController(text: s?.title ?? '');
+    final base = s?.startAt ??
+        widget.prefillStart ??
+        DateTime.now().add(const Duration(hours: 1));
+    _title = TextEditingController(text: s?.title ?? widget.prefillTitle ?? '');
     _note = TextEditingController(text: s?.note ?? '');
     _date = DateTime(base.year, base.month, base.day);
     _time = TimeOfDay(hour: base.hour, minute: base.minute);
-    _zone = s?.zone ?? context.read<ScheduleProvider>().displayZone;
+    _zone = s?.zone ??
+        widget.prefillZone ??
+        context.read<ScheduleProvider>().displayZone;
     _duration = (s?.durationMinutes ?? 30).toDouble();
   }
 
@@ -61,7 +95,10 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
   }
 
   Future<void> _pickTime() async {
-    final picked = await showWheelTimePicker(context: context, initialTime: _time);
+    final picked = await showWheelTimePicker(
+      context: context,
+      initialTime: _time,
+    );
     if (picked != null) setState(() => _time = picked);
   }
 
@@ -80,8 +117,16 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
     final ok = await provider.save(schedule);
     if (!mounted) return;
     setState(() => _saving = false);
-    if (ok) {
+            if (ok) {
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
+      if (widget.initial == null) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Jadwal tersimpan. Lihat di menu Schedule.'),
+          ),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(provider.lastSaveError ?? 'Gagal menyimpan.')),
@@ -92,8 +137,6 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
   @override
   Widget build(BuildContext context) {
     final display = context.watch<ScheduleProvider>().displayZone;
-    final conv = TimezoneConverter.convert(_wall, _zone, display);
-    final shift = TimezoneConverter.dayShiftLabel(conv.dayShift);
 
     return Scaffold(
       appBar: AppBar(
@@ -156,14 +199,15 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.swap_horiz_rounded,
-                      color: AppColors.secondary),
+                  const Icon(
+                    Icons.swap_horiz_rounded,
+                    color: AppColors.secondary,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Di ${display.code}: '
-                      '${TimezoneConverter.formatTime(conv.time)}'
-                      '${shift.isEmpty ? '' : ' ($shift)'}',
+                      '${TimezoneConverter.resultSentence(_wall, _zone, display)}'
+                      '\n${TimezoneConverter.differenceSentence(_zone, display)}',
                     ),
                   ),
                 ],

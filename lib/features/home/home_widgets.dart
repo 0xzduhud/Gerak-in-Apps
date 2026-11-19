@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../data/models/target_model.dart' show TargetProgress;
 import '../community/community_provider.dart';
+import 'daily_activity_detail_screen.dart';
 
 // Header sapaan dan ikon notifikasi.
 class HomeHeader extends StatelessWidget {
@@ -22,6 +23,23 @@ class HomeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
+        Container(
+          width: 48,
+          height: 48,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.outline),
+          ),
+          child: ClipOval(
+            child: Image.asset(
+              'assets/images/gerakin_logo.png',
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -39,7 +57,7 @@ class HomeHeader extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 24,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
                 ),
@@ -85,109 +103,147 @@ class DailyActivityCard extends StatelessWidget {
   /// Capaian terhadap target harian. null = indikator disembunyikan.
   final TargetProgress? progress;
 
-  String get _summaryLine {
-    if (sessions == 0 && steps == 0) return 'Belum ada latihan hari ini';
-    return [
-      if (sessions > 0) '$sessions sesi',
-      if (steps > 0) '$steps langkah',
-      if (distanceKm > 0) '${distanceKm.toStringAsFixed(1)} km',
-    ].join(' • ');
+  void _openDetailScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const DailyActivityDetailScreen(),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final p = progress;
-    final showProgress = p != null && p.activeCount > 0;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.secondary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: () => _openDetailScreen(context),
         borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.fitness_center_rounded, color: AppColors.neutral),
-              SizedBox(width: 8),
-              Text(
-                'Daily Activity',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.neutral,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              _ActivityStat(value: '$durationMinutes', label: 'Menit latihan'),
-              _ActivityStat(value: '$calories', label: 'Kalori (kkal)'),
-              _ActivityStat(value: '$reps', label: 'Repetisi'),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _summaryLine,
-            style: const TextStyle(fontSize: 12, color: AppColors.neutral),
-          ),
-          if (showProgress) ...[
-            const SizedBox(height: 14),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: p.overallRatio,
-                minHeight: 8,
-                backgroundColor: const Color(0x33171132),
-                color: AppColors.neutral,
-              ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.primary, AppColors.secondary],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                if (p.allAchieved)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 6),
-                    child: Icon(
-                      Icons.check_circle_rounded,
-                      size: 16,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.directions_walk_rounded, color: AppColors.neutral),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Daily Activity',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                       color: AppColors.neutral,
                     ),
                   ),
-                Expanded(
-                  child: Text(
-                    p.allAchieved
-                        ? 'Target hari ini tercapai!'
-                        : '${p.achievedCount} dari ${p.activeCount} '
-                              'target tercapai',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.neutral,
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.neutral.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Lihat Detail',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.neutral,
+                          ),
+                        ),
+                        SizedBox(width: 2),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 16,
+                          color: AppColors.neutral,
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                Text(
-                  '${(p.overallRatio * 100).floor()}%',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  _ActivityStat(value: '$steps', label: 'Langkah'),
+                  _ActivityStat(value: '$calories', label: 'Kalori (kcal)'),
+                  _ActivityStat(
+                    value: distanceKm.toStringAsFixed(1),
+                    label: 'Jarak (km)',
+                  ),
+                ],
+              ),
+              if (p != null) ...[
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: p.overallRatio,
+                    minHeight: 8,
+                    backgroundColor: const Color(0x33171132),
                     color: AppColors.neutral,
                   ),
                 ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    if (p.allAchieved)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 6),
+                        child: Icon(
+                          Icons.check_circle_rounded,
+                          size: 16,
+                          color: AppColors.neutral,
+                        ),
+                      ),
+                    Expanded(
+                      child: Text(
+                        p.allAchieved
+                            ? 'Target hari ini tercapai!'
+                            : '${p.achievedCount} dari 3 target tercapai',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.neutral,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${(p.overallRatio * 100).floor()}%',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.neutral,
+                      ),
+                    ),
+                  ],
+                ),
               ],
-            ),
-          ],
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -341,9 +397,10 @@ class _RoundMenuButton extends StatelessWidget {
               child: Icon(item.icon, color: AppColors.primary, size: 28),
             ),
             const SizedBox(height: 8),
-            Text(
+              Text(
               item.label,
-              maxLines: 1,
+              maxLines: 2,
+              textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 12,

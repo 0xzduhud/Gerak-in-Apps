@@ -4,6 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/services/notification_service.dart';
+import '../../data/models/notification_model.dart';
+import '../../data/repositories/notification_repository.dart';
 import 'subscription_provider.dart';
 
 /// [PremiumScreen] - Layar antarmuka checkout langganan FitMate Plus.
@@ -699,14 +702,166 @@ class PremiumScreen extends StatelessWidget {
                           try {
                             await provider.simulatePayment();
                             if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Pembayaran berhasil! Langganan FitMate Plus aktif.',
+
+                            // 1. Notifikasi sistem & database
+                            final now = DateTime.now();
+                            try {
+                              await NotificationService.instance.showNotification(
+                                id: 88888,
+                                title: 'Pembayaran Berhasil! 🎉',
+                                body: 'Selamat! Langganan FitMate Plus kamu kini aktif. Nikmati akses tanpa batas!',
+                              );
+                              final expiryStr = provider.expiresAt != null
+                                  ? DateFormat('dd/MM/yyyy').format(provider.expiresAt!)
+                                  : '30 hari kedepan';
+                              await NotificationRepository().addNew([
+                                AppNotification(
+                                  id: 'pay_${now.millisecondsSinceEpoch}',
+                                  title: 'Pembayaran Berhasil 🎉',
+                                  body: 'Langganan FitMate Plus aktif sampai $expiryStr. Selamat berlatih!',
+                                  createdAt: now.toUtc(),
+                                  kind: 'payment',
+                                  read: false,
                                 ),
-                                backgroundColor: Colors.green,
+                              ]);
+                            } catch (notifErr) {
+                              debugPrint('Gagal kirim notifikasi pembayaran: $notifErr');
+                            }
+
+                            if (!context.mounted) return;
+
+                            // 2. Pop-up dialog pembayaran berhasil
+                            await showDialog<void>(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (popupContext) => AlertDialog(
+                                backgroundColor: _surface,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(22),
+                                  side: BorderSide(
+                                    color: _primary.withValues(alpha: 0.5),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                                content: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 72,
+                                      height: 72,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Colors.green.withValues(alpha: 0.15),
+                                        border: Border.all(
+                                          color: Colors.greenAccent.withValues(alpha: 0.6),
+                                          width: 2,
+                                        ),
+                                      ),
+                                      child: const Icon(
+                                        Icons.check_circle_rounded,
+                                        color: Colors.greenAccent,
+                                        size: 46,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    const Text(
+                                      'Pembayaran Berhasil!',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Terima kasih! Langganan FitMate Plus kamu telah berhasil diaktifkan.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13.5,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _cardBg,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: _border),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text(
+                                            'Status Akun',
+                                            style: TextStyle(
+                                              color: Colors.white60,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 3,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  Color(0xFFFFB300),
+                                                  Color(0xFFE86524),
+                                                ],
+                                              ),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: const Text(
+                                              'PREMIUM PLUS',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 22),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 46,
+                                      child: ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: _primary,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          elevation: 2,
+                                        ),
+                                        onPressed: () {
+                                          Navigator.pop(popupContext);
+                                        },
+                                        child: const Text(
+                                          'Mulai Sekarang',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             );
+
+                            if (!context.mounted) return;
                             Navigator.pop(context);
                           } catch (e) {
                             if (!context.mounted) return;

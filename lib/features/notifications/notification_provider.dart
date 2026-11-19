@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/services/notification_service.dart';
 import '../../core/utils/reminder_planner.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/repositories/notification_repository.dart';
@@ -50,6 +51,26 @@ class NotificationProvider extends ChangeNotifier {
       _error = 'Notifikasi belum bisa dimuat.';
     }
     _loading = false;
+    _notify();
+  }
+
+  Future<void> sendDemoNotification() async {
+    final now = DateTime.now();
+    final demoNotification = AppNotification(
+      id: 'demo_${now.millisecondsSinceEpoch}',
+      title: 'Demo Notifikasi Gerak-in',
+      body: 'Waktunya berolahraga dan capai target sehatmu hari ini!',
+      createdAt: now.toUtc(),
+      kind: AppNotification.kindSchedule,
+      read: false,
+    );
+    await _repo.addNew([demoNotification]);
+    await NotificationService.instance.showNotification(
+      id: (now.millisecondsSinceEpoch ~/ 1000) % 100000,
+      title: demoNotification.title,
+      body: demoNotification.body,
+    );
+    _items = await _repo.all();
     _notify();
   }
 

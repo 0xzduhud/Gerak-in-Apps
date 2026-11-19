@@ -30,6 +30,7 @@ class ActivityMetrics {
 /// kartu Daily Activity (PBI-8.7), dan achievement.
 class ActivitySummary {
   const ActivitySummary({
+    this.userId,
     required this.startedAt,
     required this.durationSeconds,
     required this.steps,
@@ -40,6 +41,8 @@ class ActivitySummary {
     this.motionType,
   });
 
+  /// ID akun pengguna pemilik aktivitas ini.
+  final String? userId;
   final DateTime startedAt;
   final int durationSeconds;
   final int steps;
@@ -53,7 +56,31 @@ class ActivitySummary {
   /// Jenis gerakan Mode Gerakan: 'squat', 'pushUp', atau 'jump'. null = sesi biasa.
   final String? motionType;
 
+  ActivitySummary copyWith({
+    String? userId,
+    DateTime? startedAt,
+    int? durationSeconds,
+    int? steps,
+    double? distanceMeters,
+    double? calories,
+    String? sportId,
+    int? reps,
+    String? motionType,
+  }) =>
+      ActivitySummary(
+        userId: userId ?? this.userId,
+        startedAt: startedAt ?? this.startedAt,
+        durationSeconds: durationSeconds ?? this.durationSeconds,
+        steps: steps ?? this.steps,
+        distanceMeters: distanceMeters ?? this.distanceMeters,
+        calories: calories ?? this.calories,
+        sportId: sportId ?? this.sportId,
+        reps: reps ?? this.reps,
+        motionType: motionType ?? this.motionType,
+      );
+
   Map<String, dynamic> toJson() => {
+        if (userId != null) 'user_id': userId,
         'started_at': startedAt.toIso8601String(),
         'duration_seconds': durationSeconds,
         'steps': steps,
@@ -66,6 +93,7 @@ class ActivitySummary {
 
   factory ActivitySummary.fromJson(Map<String, dynamic> json) =>
       ActivitySummary(
+        userId: json['user_id']?.toString(),
         startedAt: DateTime.parse(json['started_at'] as String),
         durationSeconds: json['duration_seconds'] as int,
         steps: json['steps'] as int,

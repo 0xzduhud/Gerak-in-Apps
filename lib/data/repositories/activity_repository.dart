@@ -71,9 +71,9 @@ class DailyTotals {
 abstract class ActivityStore {
   Future<void> insert(ActivitySummary summary);
 
-  Future<List<ActivitySummary>> forDay(DateTime day);
+  Future<List<ActivitySummary>> forDay(DateTime day, {String? userId});
 
-  Future<List<Map<String, dynamic>>> pendingForSync();
+  Future<List<Map<String, dynamic>>> pendingForSync({String? userId});
 
   Future<void> setServerId(String localId, String serverId);
 
@@ -95,21 +95,30 @@ class SqliteActivityStore implements ActivityStore {
 
     await db.insert(DatabaseHelper.tableActivities, {
       ...summary.toJson(),
+      'user_id': summary.userId,
       'server_id': null,
       'synced': 0,
     });
   }
 
   @override
-  Future<List<ActivitySummary>> forDay(DateTime day) async {
+  Future<List<ActivitySummary>> forDay(DateTime day, {String? userId}) async {
     final db = await _helper.database;
     final start = DateTime(day.year, day.month, day.day);
     final end = DateTime(day.year, day.month, day.day + 1);
 
+    String where = 'started_at >= ? AND started_at < ?';
+    List<dynamic> whereArgs = [start.toIso8601String(), end.toIso8601String()];
+
+    if (userId != null && userId.isNotEmpty) {
+      where += ' AND user_id = ?';
+      whereArgs.add(userId);
+    }
+
     final rows = await db.query(
       DatabaseHelper.tableActivities,
-      where: 'started_at >= ? AND started_at < ?',
-      whereArgs: [start.toIso8601String(), end.toIso8601String()],
+      where: where,
+      whereArgs: whereArgs,
       orderBy: 'started_at ASC',
     );
 
@@ -119,13 +128,21 @@ class SqliteActivityStore implements ActivityStore {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> pendingForSync() async {
+  Future<List<Map<String, dynamic>>> pendingForSync({String? userId}) async {
     final db = await _helper.database;
+
+    String where = 'synced = ?';
+    List<dynamic> whereArgs = [0];
+
+    if (userId != null && userId.isNotEmpty) {
+      where += ' AND (user_id = ? OR user_id IS NULL)';
+      whereArgs.add(userId);
+    }
 
     final rows = await db.query(
       DatabaseHelper.tableActivities,
-      where: 'synced = ?',
-      whereArgs: [0],
+      where: where,
+      whereArgs: whereArgs,
       orderBy: 'started_at ASC',
     );
 
@@ -236,28 +253,40 @@ class PrefsActivityStore implements ActivityStore {
   }
 
   @override
-  Future<List<ActivitySummary>> forDay(DateTime day) async {
+  Future<List<ActivitySummary>> forDay(DateTime day, {String? userId}) async {
     final prefs = await SharedPreferences.getInstance();
     final list = await _readAndNormalize(prefs);
 
     return list
         .map(ActivitySummary.fromJson)
         .where(
-          (activity) =>
-              activity.startedAt.year == day.year &&
-              activity.startedAt.month == day.month &&
-              activity.startedAt.day == day.day,
+          (activity) {
+            final matchDay = activity.startedAt.year == day.year &&
+                activity.startedAt.month == day.month &&
+                activity.startedAt.day == day.day;
+            if (!matchDay) return false;
+            if (userId != null && userId.isNotEmpty) {
+              return activity.userId == userId;
+            }
+            return true;
+          },
         )
         .toList();
   }
 
   @override
-  Future<List<Map<String, dynamic>>> pendingForSync() async {
+  Future<List<Map<String, dynamic>>> pendingForSync({String? userId}) async {
     final prefs = await SharedPreferences.getInstance();
     final list = await _readAndNormalize(prefs);
 
     return list
-        .where((item) => item['synced'] != 1)
+        .where((item) {
+          if (item['synced'] == 1) return false;
+          if (userId != null && userId.isNotEmpty) {
+            return item['user_id'] == userId || item['user_id'] == null;
+          }
+          return true;
+        })
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
   }
@@ -323,43 +352,64 @@ class ActivityRepository {
 
   SupabaseClient get _supabase => _client ?? Supabase.instance.client;
 
-  /// Simpan secara lokal terlebih dahulu.
+  /// Mendapatkan ID pengguna yang sedang login saat ini.
+  String _currentUserId([String? overrideUserId]) {
+    if (overrideUserId != null && overrideUserId.trim().isNotEmpty) {
+      return overrideUserId.trim();
+    }
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user != null && user.id.isNotEmpty) {
+        return user.id;
+      }
+    } catch (_) {}
+    return 'guest';
+  }
+
+  /// Simpan secara lokal terlebih dahulu (terkait dengan user_id akun aktif).
   /// Kegagalan server tidak membatalkan penyimpanan lokal.
-  Future<void> save(ActivitySummary summary) async {
-    await _store.insert(summary);
+  Future<void> save(ActivitySummary summary, {String? userId}) async {
+    final effectiveUserId = summary.userId ?? _currentUserId(userId);
+    final toSave = summary.copyWith(userId: effectiveUserId);
+    await _store.insert(toSave);
 
     try {
-      await syncPending();
+      await syncPending(userId: effectiveUserId);
     } catch (error) {
       debugPrint('Sinkronisasi aktivitas ditunda: $error');
     }
   }
 
-  /// Total aktivitas pada tanggal [day].
+  /// Total aktivitas pada tanggal [day] khusus untuk akun pengguna aktif.
   /// Sinkronisasi pending dicoba ulang saat total aktivitas dibuka.
-  Future<DailyTotals> totalsForDay(DateTime day) async {
+  Future<DailyTotals> totalsForDay(DateTime day, {String? userId}) async {
+    final effectiveUserId = _currentUserId(userId);
     try {
-      await syncPending();
+      await syncPending(userId: effectiveUserId);
     } catch (error) {
       debugPrint('Gagal mencoba ulang sinkronisasi: $error');
     }
 
-    return DailyTotals.from(await _store.forDay(day));
+    return DailyTotals.from(
+      await _store.forDay(day, userId: effectiveUserId),
+    );
   }
 
   /// Riwayat aktivitas dari tanggal [from] sampai [to] (inklusif),
-  /// diurutkan dari yang terbaru. Maksimal 400 hari per pemanggilan.
+  /// diurutkan dari yang terbaru khusus akun pengguna aktif.
   Future<List<ActivitySummary>> history({
     required DateTime from,
     required DateTime to,
+    String? userId,
   }) async {
+    final effectiveUserId = _currentUserId(userId);
     final out = <ActivitySummary>[];
     var day = DateTime(from.year, from.month, from.day);
     final last = DateTime(to.year, to.month, to.day);
     var guard = 0;
 
     while (!day.isAfter(last) && guard < 400) {
-      out.addAll(await _store.forDay(day));
+      out.addAll(await _store.forDay(day, userId: effectiveUserId));
       day = DateTime(day.year, day.month, day.day + 1);
       guard++;
     }
@@ -368,11 +418,8 @@ class ActivityRepository {
     return out;
   }
 
-  /// Mengirim aktivitas lokal yang belum tersinkronisasi.
-  ///
-  /// ID server dibuat sekali dan disimpan sebelum POST. Percobaan ulang akan
-  /// memakai ID yang sama sehingga aktivitas tidak sengaja dibuat berulang.
-  Future<void> syncPending() async {
+  /// Mengirim aktivitas lokal yang belum tersinkronisasi untuk akun aktif.
+  Future<void> syncPending({String? userId}) async {
     final session = _supabase.auth.currentSession;
 
     if (session == null || session.accessToken.isEmpty) {
@@ -380,7 +427,8 @@ class ActivityRepository {
       return;
     }
 
-    final pending = await _store.pendingForSync();
+    final effectiveUserId = _currentUserId(userId);
+    final pending = await _store.pendingForSync(userId: effectiveUserId);
 
     for (final item in pending) {
       final localId = item['local_id']?.toString();

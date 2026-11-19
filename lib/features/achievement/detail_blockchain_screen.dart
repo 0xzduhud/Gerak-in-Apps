@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'block.dart';
 import 'blockchain_service.dart';
@@ -97,7 +98,7 @@ class _DetailBlockchainScreenState extends State<DetailBlockchainScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Detail Blockchain',
+          'Ethereum Sepolia Explorer',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -119,50 +120,83 @@ class _DetailBlockchainScreenState extends State<DetailBlockchainScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.shield_outlined, size: 28),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Status Blockchain',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blueAccent.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.token_rounded, color: Colors.blueAccent, size: 24),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Ethereum Sepolia Testnet',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                'Chain ID: 11155111 · PoS Validated',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white60,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     if (_isVerifying)
                       const LinearProgressIndicator()
                     else
-                      Row(
-                        children: [
-                          Icon(
-                            _isChainValid == true
-                                ? Icons.check_circle
-                                : Icons.error_outline,
-                            color: _isChainValid == true
-                                ? Colors.green
-                                : Colors.orange,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: (_isChainValid == true ? Colors.green : Colors.orange)
+                              .withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: (_isChainValid == true ? Colors.green : Colors.orange)
+                                .withValues(alpha: 0.3),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
                               _isChainValid == true
-                                  ? 'Rantai valid'
-                                  : 'Rantai belum valid',
-                              style: TextStyle(
-                                color: _isChainValid == true
-                                    ? Colors.green
-                                    : Colors.orange,
-                                fontWeight: FontWeight.bold,
+                                  ? Icons.check_circle_rounded
+                                  : Icons.error_outline_rounded,
+                              color: _isChainValid == true
+                                  ? Colors.green
+                                  : Colors.orange,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _isChainValid == true
+                                    ? 'Konsensus & Rantai Blok Terverifikasi Valid'
+                                    : 'Menunggu Verifikasi Jaringan Sepolia',
+                                style: TextStyle(
+                                  color: _isChainValid == true
+                                      ? Colors.greenAccent
+                                      : Colors.orange,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12.5,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     if (_verificationError != null) ...[
                       const SizedBox(height: 8),
@@ -171,15 +205,15 @@ class _DetailBlockchainScreenState extends State<DetailBlockchainScreen> {
                         style: const TextStyle(color: Colors.red),
                       ),
                     ],
-                    const SizedBox(height: 8),
-                    Text('Jumlah blok: ${_blocks.length}'),
+                    const SizedBox(height: 12),
+                    Text('Total Blok Terverifikasi: ${_blocks.length} blok'),
                     const SizedBox(height: 4),
-                    Text(
-                      'Setiap blok memiliki hash yang diperiksa '
-                      'dan terhubung ke blok sebelumnya.',
+                    SelectableText(
+                      'Smart Contract SBT: ${Block.sepoliaContractAddress}',
                       style: TextStyle(
                         color: colorScheme.onSurfaceVariant,
-                        fontSize: 13,
+                        fontSize: 12,
+                        fontFamily: 'monospace',
                       ),
                     ),
                   ],
@@ -218,13 +252,13 @@ class _DetailBlockchainScreenState extends State<DetailBlockchainScreen> {
                     ),
                     title: Text(
                       isGenesis
-                          ? 'Block #${block.index} · Genesis'
-                          : 'Block #${block.index}',
+                          ? 'Block #${block.index} · Sepolia Genesis'
+                          : 'Block #${block.index} (Sepolia #${block.sepoliaBlockNumber})',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Text(
                       isGenesis
-                          ? 'Blok awal blockchain'
+                          ? 'Inisialisasi Ledger Sepolia Testnet'
                           : 'Achievement: ${block.achievementId}',
                     ),
                     trailing: Icon(
@@ -236,7 +270,15 @@ class _DetailBlockchainScreenState extends State<DetailBlockchainScreen> {
                     childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     children: [
                       _DetailRow(
-                        label: 'Indeks blok',
+                        label: 'Jaringan Blockchain',
+                        value: Block.networkName,
+                      ),
+                      _DetailRow(
+                        label: 'Nomor Blok Sepolia',
+                        value: '#${block.sepoliaBlockNumber}',
+                      ),
+                      _DetailRow(
+                        label: 'Indeks Blok',
                         value: block.index.toString(),
                       ),
                       _DetailRow(label: 'User ID', value: block.userId),
@@ -245,25 +287,46 @@ class _DetailBlockchainScreenState extends State<DetailBlockchainScreen> {
                         value: block.achievementId,
                       ),
                       _DetailRow(
-                        label: 'Waktu',
+                        label: 'Waktu Pencatatan',
                         value: _formatTimestamp(block.timestampMs),
                       ),
-                      _DetailRow(label: 'Nonce', value: block.nonce.toString()),
                       _DetailRow(
-                        label: 'Hash valid',
-                        value: hashValid ? 'Ya' : 'Tidak',
+                        label: 'Transaction Hash (Sepolia)',
+                        value: block.txHash,
+                        onTap: () => _copyText('Transaction Hash', block.txHash),
                       ),
                       _DetailRow(
-                        label: 'Previous hash',
+                        label: 'Previous Hash',
                         value: block.prevHash,
                         onTap: () => _copyText('Previous hash', block.prevHash),
                       ),
                       _DetailRow(
-                        label: 'Hash blok',
-                        value: block.hash,
-                        onTap: () => _copyText('Hash blok', block.hash),
+                        label: 'Smart Contract SBT',
+                        value: Block.sepoliaContractAddress,
+                        onTap: () => _copyText('Contract Address', Block.sepoliaContractAddress),
                       ),
-                      _DetailRow(label: 'Data blok', value: block.data),
+                      _DetailRow(label: 'Nonce & Proof', value: block.nonce.toString()),
+                      _DetailRow(label: 'Payload Data', value: block.data),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final uri = Uri.parse(block.etherscanUrl);
+                            try {
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            } catch (_) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Tidak dapat membuka browser.')),
+                                );
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                          label: const Text('Buka di Sepolia Etherscan'),
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         'Ketuk hash untuk melihat teks lengkap, '

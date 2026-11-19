@@ -7,6 +7,7 @@ import '../../data/models/schedule_model.dart';
 import 'schedule_form_screen.dart';
 import 'schedule_provider.dart';
 import '../../core/services/notification_service.dart';
+import '../timeconverter/time_converter_screen.dart';
 
 // [PBI-12.x] Daftar jadwal workout dengan pilihan zona waktu tampilan.
 class ScheduleScreen extends StatelessWidget {
@@ -66,6 +67,15 @@ class _ScheduleView extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Schedule'),
         actions: [
+          IconButton(
+            tooltip: 'Konversi Waktu',
+            icon: const Icon(Icons.swap_horiz_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const TimeConverterScreen(),
+              ),
+            ),
+          ),
           PopupMenuButton<AppTimeZone>(
             tooltip: 'Zona waktu tampilan',
             icon: const Icon(Icons.public_rounded),
@@ -127,11 +137,27 @@ class _ScheduleView extends StatelessWidget {
       itemCount: p.items.length + 1,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, i) {
-        if (i == 0) {
-          return Text(
-            'Waktu ditampilkan dalam ${p.displayZone.name} '
-            '(${p.displayZone.utcLabel})',
-            style: const TextStyle(color: AppColors.textSecondary),
+               if (i == 0) {
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceHigh,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.public_rounded, color: AppColors.secondary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Jam ditampilkan dalam ${p.displayZone.name} '
+                    '(${p.displayZone.utcLabel}).\n'
+                    'Ubah lewat ikon globe di kanan atas.',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
           );
         }
         final s = p.items[i - 1];
@@ -162,9 +188,30 @@ class _ScheduleView extends StatelessWidget {
               '${sameZone ? '' : '\nAsli: ${TimezoneConverter.formatTime(s.startAt)} ${s.zone.code}'}',
             ),
             isThreeLine: !sameZone,
-            trailing: IconButton(
-              icon: const Icon(Icons.delete_outline_rounded),
-              onPressed: () => _confirmDelete(context, s),
+              trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Konversi jam ini',
+                  icon: const Icon(Icons.swap_horiz_rounded),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => TimeConverterScreen(
+                        initialWall: s.startAt,
+                        initialFrom: s.zone,
+                        initialTo: sameZone
+                            ? TimezoneConverter.all
+                                .firstWhere((z) => z.code != s.zone.code)
+                            : p.displayZone,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  onPressed: () => _confirmDelete(context, s),
+                ),
+              ],
             ),
           ),
         );

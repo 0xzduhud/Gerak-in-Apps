@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart' show ConflictAlgorithm;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../local/database_helper.dart';
 import '../models/target_model.dart';
@@ -12,11 +13,11 @@ import '../models/target_model.dart';
 // ============================================================================
 abstract class TargetStore {
   /// null jika pengguna belum pernah mengatur target.
-  Future<DailyTarget?> load();
-  Future<void> save(DailyTarget target);
+  Future<DailyTarget?> load({String? userId});
+  Future<void> save(DailyTarget target, {String? userId});
 }
 
-/// Android/iOS: SQLite (tabel `targets`, satu baris id = 1).
+/// Android/iOS: SQLite (tabel `targets`, dipisahkan per `user_id`).
 class SqliteTargetStore implements TargetStore {
   SqliteTargetStore([DatabaseHelper? helper])
       : _helper = helper ?? DatabaseHelper.instance;
@@ -24,25 +25,47 @@ class SqliteTargetStore implements TargetStore {
   final DatabaseHelper _helper;
 
   @override
-  Future<DailyTarget?> load() async {
+  Future<DailyTarget?> load({String? userId}) async {
     final db = await _helper.database;
-    final rows = await db.query(
+
+    if (userId != null && userId.isNotEmpty) {
+      final rows = await db.query(
+        DatabaseHelper.tableTargets,
+        where: 'user_id = ?',
+        whereArgs: [userId],
+        limit: 1,
+      );
+      if (rows.isNotEmpty) {
+        return DailyTarget.fromJson(Map<String, dynamic>.from(rows.first));
+      }
+    }
+
+    // Fallback data umum/lama jika belum diset per user
+    final fallbackRows = await db.query(
       DatabaseHelper.tableTargets,
       where: 'id = 1',
       limit: 1,
     );
-    if (rows.isEmpty) return null;
-    return DailyTarget.fromJson(Map<String, dynamic>.from(rows.first));
+    if (fallbackRows.isNotEmpty) {
+      return DailyTarget.fromJson(Map<String, dynamic>.from(fallbackRows.first));
+    }
+    return null;
   }
 
   @override
-  Future<void> save(DailyTarget target) async {
+  Future<void> save(DailyTarget target, {String? userId}) async {
     final db = await _helper.database;
-    // `synced` = 0 (pending): disiapkan untuk sinkronisasi ke server.
+    if (userId != null && userId.isNotEmpty) {
+      await db.delete(
+        DatabaseHelper.tableTargets,
+        where: 'user_id = ?',
+        whereArgs: [userId],
+      );
+    }
     await db.insert(
       DatabaseHelper.tableTargets,
       {
-        'id': 1,
+        if (userId != null && userId.isNotEmpty) 'user_id': userId,
         ...target.toJson(),
         'updated_at': DateTime.now().toIso8601String(),
         'synced': 0,
@@ -52,15 +75,17 @@ class SqliteTargetStore implements TargetStore {
   }
 }
 
-/// Flutter Web (sqflite tidak tersedia): disimpan sebagai JSON di
-/// shared_preferences. Hanya cadangan agar fitur bisa dicoba di Edge.
+/// Flutter Web: disimpan per user_id di SharedPreferences.
 class PrefsTargetStore implements TargetStore {
-  static const String _key = 'daily_target_v1';
+  String _keyFor(String? userId) =>
+      userId != null && userId.isNotEmpty
+          ? 'daily_target_$userId'
+          : 'daily_target_v1';
 
   @override
-  Future<DailyTarget?> load() async {
+  Future<DailyTarget?> load({String? userId}) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
+    final raw = prefs.getString(_keyFor(userId)) ?? prefs.getString('daily_target_v1');
     if (raw == null) return null;
     try {
       return DailyTarget.fromJson(
@@ -72,9 +97,9 @@ class PrefsTargetStore implements TargetStore {
   }
 
   @override
-  Future<void> save(DailyTarget target) async {
+  Future<void> save(DailyTarget target, {String? userId}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(target.toJson()));
+    await prefs.setString(_keyFor(userId), jsonEncode(target.toJson()));
   }
 }
 
@@ -82,21 +107,42 @@ class PrefsTargetStore implements TargetStore {
 // TargetRepository — pintu masuk yang dipakai layar
 // ============================================================================
 class TargetRepository {
-  TargetRepository({TargetStore? store}) : _store = store ?? _defaultStore();
+  TargetRepository({TargetStore? store, SupabaseClient? client})
+      : _store = store ?? _defaultStore(),
+        _client = client;
 
   static TargetStore _defaultStore() =>
       kIsWeb ? PrefsTargetStore() : SqliteTargetStore();
 
   final TargetStore _store;
+  final SupabaseClient? _client;
 
-  /// Target tersimpan, atau nilai bawaan jika belum pernah diatur.
-  Future<DailyTarget> load() async =>
-      (await _store.load()) ?? const DailyTarget();
+  SupabaseClient get _supabase => _client ?? Supabase.instance.client;
 
-  /// Menyimpan target (dipaksa masuk rentang) dan mengembalikan nilai akhirnya.
-  Future<DailyTarget> save(DailyTarget target) async {
+  String _currentUserId([String? overrideUserId]) {
+    if (overrideUserId != null && overrideUserId.trim().isNotEmpty) {
+      return overrideUserId.trim();
+    }
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user != null && user.id.isNotEmpty) {
+        return user.id;
+      }
+    } catch (_) {}
+    return 'default_user';
+  }
+
+  /// Target tersimpan khusus akun pengguna aktif, atau nilai bawaan jika belum diatur.
+  Future<DailyTarget> load({String? userId}) async {
+    final effectiveUserId = _currentUserId(userId);
+    return (await _store.load(userId: effectiveUserId)) ?? const DailyTarget();
+  }
+
+  /// Menyimpan target untuk akun pengguna aktif.
+  Future<DailyTarget> save(DailyTarget target, {String? userId}) async {
+    final effectiveUserId = _currentUserId(userId);
     final fixed = target.clamped();
-    await _store.save(fixed);
+    await _store.save(fixed, userId: effectiveUserId);
     return fixed;
   }
 }

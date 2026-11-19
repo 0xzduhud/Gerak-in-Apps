@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme.dart';
 import '../../data/models/target_model.dart';
@@ -44,9 +45,11 @@ class _ActivityChartSectionState extends State<ActivityChartSection> {
     });
     try {
       final window = windowFor(_range, DateTime.now());
+      final uid = Supabase.instance.client.auth.currentUser?.id;
       final items = await _activities.history(
         from: window.start,
         to: window.end,
+        userId: uid,
       );
       if (!mounted) return;
       setState(() {
@@ -92,7 +95,6 @@ class _ActivityChartSectionState extends State<ActivityChartSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 24),
         const Text(
           'Grafik aktivitas',
           style: TextStyle(

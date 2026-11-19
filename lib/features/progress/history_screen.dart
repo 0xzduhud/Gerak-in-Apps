@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme.dart';
 import '../../data/models/activity_model.dart';
@@ -64,9 +65,11 @@ class _HistorySectionState extends State<HistorySection> {
       _error = null;
     });
     try {
+      final uid = Supabase.instance.client.auth.currentUser?.id;
       final items = await _activities.history(
         from: _range.start,
         to: _range.end,
+        userId: uid,
       );
       var sports = _sports;
       if (sports.isEmpty) {
@@ -125,7 +128,6 @@ class _HistorySectionState extends State<HistorySection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 24),
         Row(
           children: [
             const Expanded(
