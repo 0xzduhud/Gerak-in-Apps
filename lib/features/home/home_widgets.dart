@@ -399,8 +399,7 @@ class _RoundMenuButton extends StatelessWidget {
             const SizedBox(height: 8),
               Text(
               item.label,
-              maxLines: 2,
-              textAlign: TextAlign.center,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 12,
