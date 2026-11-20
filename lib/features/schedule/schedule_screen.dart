@@ -67,15 +67,6 @@ class _ScheduleView extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Schedule'),
         actions: [
-          IconButton(
-            tooltip: 'Konversi Waktu',
-            icon: const Icon(Icons.swap_horiz_rounded),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const TimeConverterScreen(),
-              ),
-            ),
-          ),
           PopupMenuButton<AppTimeZone>(
             tooltip: 'Zona waktu tampilan',
             icon: const Icon(Icons.public_rounded),
@@ -99,6 +90,7 @@ class _ScheduleView extends StatelessWidget {
       body: Column(
         children: [
           if (!p.notificationsEnabled) const _NotificationOffBanner(),
+          const _ConverterBanner(),
           Expanded(child: _body(context, p)),
         ],
       ),
@@ -191,9 +183,9 @@ class _ScheduleView extends StatelessWidget {
               trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  tooltip: 'Konversi jam ini',
-                  icon: const Icon(Icons.swap_horiz_rounded),
+                  TextButton.icon(
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                  label: const Text('Konversi'),
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => TimeConverterScreen(
@@ -248,6 +240,62 @@ class _NotificationOffBanner extends StatelessWidget {
             child: const Text('Aktifkan'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ConverterBanner extends StatelessWidget {
+  const _ConverterBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Material(
+        color: AppColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const TimeConverterScreen(),
+            ),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Icon(Icons.swap_horiz_rounded, color: AppColors.secondary),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Konversi Waktu',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Cek jam latihan ini di WIB, WITA, atau WIT '
+                        'untuk teman di zona lain.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
